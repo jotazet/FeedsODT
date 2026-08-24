@@ -1,0 +1,21 @@
+# Środowisko lokalne
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.idea/
+.vscode/
+
+# Ustawienia tej maszyny — wzorzec leży w .env.example
+.env
+
+# Wycinek OSM (2 GB) i zaimportowane z niego grafy routingu (641 MB).
+# Odtwarzalne: pobierz .pbf z Geofabrika, resztę zbuduje pierwszy start
+# silników. Patrz shaper/README.md.
+osm/
+shaper/cache/
+
+# Publikowane feedy i dane robocze — wynik działania, nie źródło.
+# Trzymamy sam .gitkeep, żeby katalog istniał przed pierwszym przebiegiem.
+gtfs/*
+!gtfs/.gitkeep

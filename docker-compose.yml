@@ -1,0 +1,98 @@
+services:
+  fetcher:
+    build: .
+    container_name: feedsodt-fetcher
+    restart: unless-stopped
+    environment:
+      TZ: Europe/Warsaw
+      # Slot każdego źródła (run_day + run_at) stoi w config/sources.toml.
+      # Poniższe to tylko wartości domyślne dla źródeł, które go nie podały.
+      FEEDSODT_INTERVAL_DAYS: "3"
+      FEEDSODT_RUN_AT: "00:30"
+      # Odstępy ponawiania dla źródeł, które zawiodły. Puste = bez ponawiania.
+      FEEDSODT_RETRY_MINUTES: "15,30,60"
+      # Pierwszy przebieg od razu po starcie, żeby `up -d` dawało pliki bez czekania.
+      FEEDSODT_RUN_ON_START: "true"
+    volumes:
+      - ./gtfs:/data/gtfs
+      # Montujemy KATALOG, nie pojedynczy plik. Bind pojedynczego pliku trzyma
+      # inode z chwili startu kontenera, więc edycja sources.toml (która plik
+      # podmienia, a nie modyfikuje w miejscu) nie dotarłaby do środka.
+      - ./config:/app/config:ro
+
+  web:
+    image: nginx:alpine
+    container_name: feedsodt-web
+    restart: unless-stopped
+    depends_on:
+      - fetcher
+    environment:
+      # Bez tego kontener stoi na UTC: log dostępowy pisze +0000, a listing
+      # katalogu (autoindex_localtime) pokazuje daty plików o dwie godziny
+      # wstecz. Obraz nginx:alpine ma bazę stref, więc sama zmienna wystarczy.
+      #
+      # Nagłówków Date i Last-Modified to nie dotyczy — HTTP wymaga w nich GMT
+      # i tak ma zostać.
+      TZ: Europe/Warsaw
+    ports:
+      # To jedyna usługa, która ma być widoczna z zewnątrz — tu leżą feedy.
+      # 8080 bywa zajęte przez inne projekty — nadpisz przez FEEDSODT_PORT w .env.
+      # Na serwerze publicznym postaw przed tym reverse proxy z TLS.
+      - "${FEEDSODT_PORT:-8090}:80"
+    volumes:
+      - ./gtfs:/srv/gtfs:ro
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+
+  # --- Silniki routujące dla kroku `shape` -------------------------------------
+  # Profil "shape", więc zwykłe `docker compose up -d` ich nie rusza. Startują
+  # razem ze stackiem dopiero przy:
+  #
+  #   docker compose --profile shape up -d
+  #
+  # Obrazy i konfiguracja pochodzą z gtfs-shaper-maker (MIT) — patrz shaper/.
+  # Grafy w ./shaper/cache/ przeżywają restarty; pierwszy start z pustym
+  # katalogiem importuje wycinek OSM i trwa kilkadziesiąt minut.
+  #
+  # UWAGA: te same porty 45889/45890 zajmuje własne docker-compose
+  # gtfs-shaper-makera. Dwóch kompletów silników naraz nie da się uruchomić
+  # i nie ma po co — to te same silniki, robiące to samo.
+
+  railrouting:
+    profiles: ["shape"]
+    build: ./shaper/openrailrouting
+    image: feedsodt-railrouting:v1.1
+    container_name: feedsodt-railrouting
+    restart: unless-stopped
+    ports:
+      # TYLKO pętla zwrotna. Fetcher gada z silnikiem po sieci compose
+      # (http://railrouting:8989), więc mapowanie na hosta służy wyłącznie
+      # diagnostyce. Bez 127.0.0.1 silnik routujący stałby otworem na publicznym
+      # interfejsie: bez uwierzytelnienia, a jedno /route przez pół Polski to
+      # realna praca CPU dla każdego, kto go znajdzie.
+      - "127.0.0.1:${FEEDSODT_RAIL_PORT:-45889}:8989"
+    volumes:
+      - ${FEEDSODT_OSM_FILE:-./osm/poland-latest.osm.pbf}:/data/map.osm.pbf:ro
+      - ./shaper/cache/rail:/graph-cache
+      # Konfiguracja jest też wpieczona w obraz (tak robi upstream), ale
+      # montujemy ją z hosta: bez tego edycja profilu wymagałaby pamiętania
+      # o `--build`, a brak przebudowy objawia się cicho — silnik wstaje
+      # ze starym modelem i nikt tego nie widzi w logach.
+      - ./shaper/openrailrouting/config.yml:/app/config.yml:ro
+    environment:
+      JAVA_OPTS: ${RAIL_JAVA_OPTS:--Xmx4g -Xms1g}
+
+  graphhopper-bus:
+    profiles: ["shape"]
+    image: israelhikingmap/graphhopper:11.0
+    container_name: feedsodt-graphhopper-bus
+    restart: unless-stopped
+    command: ["-c", "/gh-config/config-bus.yml", "-i", "/data/map.osm.pbf", "-o", "/graph-cache", "--host", "0.0.0.0"]
+    ports:
+      # Jak wyżej — tylko pętla zwrotna.
+      - "127.0.0.1:${FEEDSODT_BUS_PORT:-45890}:8989"
+    volumes:
+      - ${FEEDSODT_OSM_FILE:-./osm/poland-latest.osm.pbf}:/data/map.osm.pbf:ro
+      - ./shaper/cache/bus:/graph-cache
+      - ./shaper/graphhopper:/gh-config:ro
+    environment:
+      JAVA_OPTS: ${BUS_JAVA_OPTS:--Xmx4g -Xms1g}

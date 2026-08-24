@@ -1,0 +1,82 @@
+# OpenRailRouting configuration for gtfs-shaper-maker.
+# Based on the upstream example: https://github.com/geofabrik/OpenRailRouting/blob/v1.1/config.yml
+graphhopper:
+  datareader.file: /data/map.osm.pbf
+  graph.location: /graph-cache
+
+  # Profiles used by the shape generator:
+  #   rail -> GTFS route_type 2 (railway=rail tracks)
+  #   tram -> GTFS route_type 0 (railway=rail/light_rail/tram tracks)
+  # The referenced custom model files (rail.json, tramtrain.json,
+  # gauge_1435.json, preferred_direction.json) are bundled inside the
+  # OpenRailRouting jar.
+  #
+  # ODSTĘPSTWO OD gtfs-shaper-makera: profil `rail` ma dołożony gauge_1435.json,
+  # który wyklucza tory o rozstawie innym niż 1435 mm. Bez niego pociągi
+  # pasażerskie potrafią zostać dopasowane do Linii Hutniczej Szerokotorowej
+  # (1520 mm), która biegnie równolegle do zwykłych linii od granicy
+  # z Ukrainą po Sławków. `gauge != 0` w tym modelu przepuszcza tory bez
+  # otagowanego rozstawu, więc reguła nie wycina normalnej sieci.
+  #
+  # Świadomie NIE dotyczy profilu `tram`: w Polsce jeżdżą sieci metrowe
+  # (Grudziądz, Elbląg), które ta reguła by wykluczyła.
+  profiles:
+    - name: rail
+      turn_costs:
+        vehicle_types: [train]
+        # Reversing costs 5 minutes.
+        u_turn_costs: 300
+        enable_uturn_times: true
+      custom_model_files: [rail.json, gauge_1435.json, preferred_direction.json]
+    - name: tram
+      turn_costs:
+        vehicle_types: [train, tram, light_rail]
+        # Reversing costs 3 minutes.
+        u_turn_costs: 180
+        enable_uturn_times: true
+      custom_model_files: [tramtrain.json, preferred_direction.json]
+
+  # Speed mode (Contraction Hierarchies) for fast /route requests.
+  profiles_ch:
+    - profile: rail
+    - profile: tram
+  profiles_lm: []
+
+  graph.encoded_values: gauge,voltage,electrified,frequency,road_environment,max_speed,rail_access,rail_average_speed,railway_class,railway_service,preferred_direction
+
+  prepare.min_network_size: 200
+  prepare.subnetworks.threads: 1
+
+  routing.snap_preventions_default: tunnel, bridge, ferry
+  routing.non_ch.max_waypoint_distance: 1000000
+
+  import.osm.ignored_highways: footway,construction,cycleway,path,steps
+  graph.dataaccess.default_type: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      # Inside the container; docker-compose maps this to localhost:45889.
+      bind_host: 0.0.0.0
+      max_request_header_size: 50k
+  request_log:
+    appenders: []
+  admin_connectors:
+    - type: http
+      port: 8991
+      bind_host: 0.0.0.0
+
+logging:
+  level: INFO
+  appenders:
+    - type: console
+      time_zone: UTC
+      log_format: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  loggers:
+    "com.graphhopper.osm_warnings":
+      level: WARN
+      additive: false
+      appenders:
+        - type: console
+          logFormat: "[%level] %msg%n"

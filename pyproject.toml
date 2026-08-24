@@ -1,0 +1,32 @@
+[project]
+name = "feedsodt"
+version = "1.0.0"
+description = "Mirror najnowszych GTFS pod stałymi adresami"
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32,<3",
+    "beautifulsoup4>=4.12,<5",
+    "APScheduler>=3.10,<4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[tool.setuptools.packages.find]
+include = ["feedsodt*"]
+
+# Wersjonowana kopia listy peronów PLK — bez niej przebudowa POLREGIO nie ma
+# ścieżki zapasowej, gdy GitHub Pages nie odpowiada.
+[tool.setuptools.package-data]
+feedsodt = ["data/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Testy nie ruszają sieci ani silników routujących: budują sztuczne paczki GTFS
+# w tmp_path, a router podmieniają atrapą. Pełny przebieg po dziewięciu źródłach
+# to `python -m feedsodt run-once`.
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,71 @@
+route_id,agency_id,route_short_name,route_long_name,route_type,route_color,route_text_color
+MLDa1,MLD,A1,Kraków Mda — Myślenice D.a.,3,b22159,ffffff
+MLDa2,MLD,A2,Myślenice D.a. — Wieliczka Centrum,3,c0000f,ffffff
+MLDa3,MLD,A3,Limanowa Zygmunta Augusta — Bochnia Dworzec PKP,3,954a00,ffffff
+MLDa4,MLD,A4,Nowe Brzesko Rynek — Bochnia Dworzec PKP,3,355ca8,ffffff
+MLDa5,MLD,A5,Koszyce — Brzesko D.a.,3,b80069,ffffff
+MLDa6,MLD,A6,Wieliczka Centrum — Łapanów Rynek,3,695f00,ffffff
+MLDa7,MLD,A7,Podłęże P+R Północ — Proszowice P+R Kościuszki,3,006a62,ffffff
+MLDa8,MLD,A8,Wieliczka Centrum — Pogorzany Diabli Kamień,3,006687,ffffff
+MLDa9,MLD,A9,Limanowa Zygmunta Augusta — Wieliczka Centrum,3,006874,ffffff
+MLDa10,MLD,A10,Krzeszowice Dworzec PKP — Olkusz Dworzec PKS,3,9b4429,ffffff
+MLDa11,MLD,A11,Poręba Wielka Koninki Ośrodek Narciarski — Myślenice D.a.,3,006e30,ffffff
+MLDa12,MLD,A12,Olkusz Dworzec PKS — Kraków Mda,3,795900,ffffff
+MLDa13,MLD,A13,Kraków Mda — Olkusz Dworzec PKP,3,3e6a00,ffffff
+MLDa14,MLD,A14,Kraków Mda — Czernichów Rynek,3,7a47a1,ffffff
+MLDa15,MLD,A15,Chochołów Chochołowskie Termy — Poprad As,3,345bad,ffffff
+MLDa16,MLD,A16,Wieliczka Centrum — Myślenice D.a.,3,335ca8,ffffff
+MLDa17,MLD,A17,Dobczyce Witosa (Pętla) — Wieliczka Centrum,3,ae285b,ffffff
+MLDa18,MLD,A18,Siedlec Centrum — Niepołomice Dworzec,3,8c418c,ffffff
+MLDa19,MLD,A19,Olszowice Pętla — Wieliczka Centrum,3,526600,ffffff
+MLDa20,MLD,A20,Iwkowa Nagórze Pętla — Bochnia Dworzec PKP,3,954904,ffffff
+MLDa21,MLD,A21,Nowy Sącz Mda — Nowy Targ Dworzec Kolejowy,3,9a461c,ffffff
+MLDa22,MLD,A22,Nowy Sącz Mda — Tarnów Dworzec Autobusowy,3,83468f,ffffff
+MLDa23,MLD,A23,Wysowa Zdrój Sanatorium Beskid — Tarnów Dworzec Autobusowy,3,576500,ffffff
+MLDa24,MLD,A24,Lisia Góra Szkoła — Tarnów Mościce - Plac,3,00668a,ffffff
+MLDa25,MLD,A25,Andrychów D.a. — Smolice Lipowa,3,006492,ffffff
+MLDa26,MLD,A26,Tarnów Krakowska – Planty — Biadoliny Szlacheckie PKP,3,006874,ffffff
+MLDa27,MLD,A27,Tarnów Mościce - Plac — Zawada - Pętla,3,00696c,ffffff
+MLDa28,MLD,A28,Tarnów Dworzec Autobusowy — Łękawka - Kościół,3,006e1d,ffffff
+MLDa29,MLD,A29,Tarnów Marszałka — Koszyce Małe - ul. Wolska - Dęby,3,c1000e,ffffff
+MLDa30,MLD,A30,Tarnów Marszałka — Zgłobice - ul. Zgłobicka - Odr,3,00687a,ffffff
+MLDa31,MLD,A31,Szczepanowice - Zatoka — Świebodzin - Kłokowa PKP,3,556500,ffffff
+MLDa32,MLD,A32,Spytkowice Szkoła — Bukowina Tatrzańska Klin,3,b91a24,ffffff
+MLDa33,MLD,A33,Jaworki Czarna Woda — Dursztyn Kościół,3,b91a24,ffffff
+MLDa34,MLD,A34,Jodłówka - Wałki - Dół — Tarnów Dworzec Autobusowy,3,764b9b,ffffff
+MLDa35,MLD,A35,Jodłówka - Wałki - Dół — Lichwin - Centrum,3,725c00,ffffff
+MLDa36,MLD,A36,Tarnów Dworzec Autobusowy — Dąbrowa Tarnowska Szpitalna,3,9d4142,ffffff
+MLDa37,MLD,A37,Proszowice P+R Kościuszki — Podłęże P+R Północ,3,006a5f,ffffff
+MLDa38,MLD,A38,Nowa Jastrząbka - Podlesie — Tarnów Dworzec Autobusowy,3,676000,ffffff
+MLDa39,MLD,A39,Tarnów Dworzec Autobusowy — Zaczarnie - Pętla,3,0062a2,ffffff
+MLDa40,MLD,A40,Kraków Mda — Kęty Grupa Kęty,3,315ca8,ffffff
+MLDa41,MLD,A41,Mszana Dolna Dworzec Autobusowy — Myślenice D.a.,3,006874,ffffff
+MLDa42,MLD,A42,Chrzanów Szpital — Krzeszowice Dworzec PKP,3,ad0697,ffffff
+MLDa43,MLD,A43,Kalwaria Zebrzydowska D.a. — Skawina Sck,3,b70074,ffffff
+MLDa44,MLD,A44,Alwernia Zakłady Chemiczne — Kraków Mda,3,006b5e,ffffff
+MLDa45,MLD,A45,Nowy Targ Dworzec Kolejowy — Poprad As,3,365ca8,ffffff
+MLDa46,MLD,A46,Lubcza Centrum — Tarnów Dworzec Autobusowy,3,9c4047,ffffff
+MLDa47,MLD,A47,Andrychów D.a. — Oświęcim Lodowisko,3,9c4047,ffffff
+MLDa48,MLD,A48,Olkusz Dworzec PKS — Chrzanów Szpital,3,895100,ffffff
+MLDa49,MLD,A49,Dobczyce Witosa (Pętla) — Kraków os. Podwawelskie,3,006a62,ffffff
+MLDa50,MLD,A50,Czyżyny Dworzec — Proszowice P+R Kościuszki,3,9b4058,ffffff
+MLDa51,MLD,A51,Tarnów Krakowska – Planty — Tarnów Sikorskiego,3,944b00,ffffff
+MLDa52,MLD,A52,Tarnów Krakowska – Planty — Tarnów Sikorskiego,3,704d9f,ffffff
+MLDa53,MLD,A53,Skawina Sck — Zawoja Policzne,3,944b00,ffffff
+MLDa54,MLD,A54,Tarnów Krakowska – Planty — Radłów Plac Kościuszki,3,426900,ffffff
+MLDa55,MLD,A55,Wytrzyszczka — Tarnów Dworzec Autobusowy,3,b91a24,ffffff
+MLDa56,MLD,A56,Lanckorona Centrum — Kraków Mda,3,385ca9,ffffff
+MLDa57,MLD,A57,Koszyce — Czyżyny Dworzec,3,b5222f,ffffff
+MLDa58,MLD,A58,Wieliczka Centrum — Kraków Mały Płaszów P+R,3,b91a24,ffffff
+MLDa59,MLD,A59,Dąbrowica Szkoła — Wieliczka Centrum,3,943699,ffffff
+MLDa60,MLD,A60,Alwernia Zakłady Chemiczne — Kraków os. Podwawelskie,3,775a00,ffffff
+MLDa61,MLD,A61,Obidowa Pętla — Tylmanowa Szkoła,3,0062a0,ffffff
+MLDa62,MLD,A62,Lubcza Centrum — Tarnów Dworzec Autobusowy,3,006b5b,ffffff
+MLDa63,MLD,A63,Ryglice Węzeł Przesiadkowy — Tarnów Dworzec Autobusowy,3,b32915,ffffff
+MLDa64,MLD,A64,Kraków Mda — Alwernia Zakłady Chemiczne,3,385ca9,ffffff
+MLDa65,MLD,A65,Bochnia Dworzec PKP — Nowe Brzesko Rynek,3,b12e0d,ffffff
+MLDa66,MLD,A66,Oświęcim Dworzec PKP — Alwernia Zakłady Chemiczne,3,3f6919,ffffff
+MLDa71,MLD,A71,Obidowa Pętla — Tylmanowa Stachówka,3,8b5000,ffffff
+MLDk63,MLD,K63,Kraków Główny (Kraków Main Station) — Podłęże P+R Północ,3,385ca9,ffffff
+MLDk71,MLD,K71,Jasło Niegłowice — Jasło,3,385ca9,ffffff
+MLDska2,MLD,SKA2,Słomniki — Kraków Główny (Kraków Main Station),3,385ca9,ffffff

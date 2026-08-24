@@ -1,0 +1,12 @@
+# Barwy linii Szybkiej Kolei Aglomeracyjnej, te same co w feedzie POLREGIO —
+# pasażer widzi SKA2 w jednym kolorze niezależnie od tego, czyj rozkład ogląda.
+#
+# UWAGA: feed KML SKA (kml-ska-gtfs.zip) nie zawiera dziś linii SKA1/SKA2/SKA3.
+# Jego routes.txt to nazwy handlowe pociągów (KML, JASKÓŁKA, DUNAJEC...),
+# a route_short_name jest puste we wszystkich 8 wierszach. Ta tabela czeka
+# gotowa: gdy przewoźnik zacznie nazywać linie, barwy wejdą same. Do tego czasu
+# wszystkie trasy dostają domyślny #164194 z sources.toml.
+route_short_name,route_color
+SKA1,29ace0
+SKA2,d23a7b
+SKA3,f3b936

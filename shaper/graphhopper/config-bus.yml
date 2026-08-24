@@ -1,0 +1,55 @@
+# Vanilla GraphHopper configuration for bus routing (GTFS route_type 3).
+# Used with the israelhikingmap/graphhopper image; the bus custom model lives
+# in ./custom_models/bus_shaper.json (copied from the upstream GraphHopper repo).
+# NOTE: the file must NOT be named bus.json — GraphHopper ships a built-in
+# custom model by that name and rejects a user file that reuses it.
+graphhopper:
+  datareader.file: /data/map.osm.pbf
+  graph.location: /graph-cache
+
+  custom_models.directory: /gh-config/custom_models
+
+  profiles:
+    - name: bus
+      custom_model_files: [bus_shaper.json]
+      # Respect car/bus turn restrictions and heavily penalise turning around.
+      # u_turn_costs is a time penalty in seconds added for every U-turn, so a
+      # large value makes the router reverse only when there is no alternative.
+      turn_costs:
+        vehicle_types: [motorcar, bus]
+        u_turn_costs: 600
+
+  # No CH/LM preparation: keeps import fast and light, and map matching plus
+  # regional-extract routing work fine in flexible mode.
+  profiles_ch: []
+  profiles_lm: []
+
+  # max_weight/max_width/max_height are deliberately omitted: buses must ignore
+  # tonnage and gabarit signs when routing (they severed real bus routes, e.g.
+  # a 2.5 t bridge and residential streets tagged maxheight=3.0).
+  graph.encoded_values: bus_access, road_class, road_environment, car_average_speed, max_speed, ferry_speed
+
+  # Roads irrelevant for buses - smaller and faster graph.
+  import.osm.ignored_highways: footway,cycleway,path,pedestrian,steps,construction
+
+  prepare.min_network_size: 200
+  routing.snap_preventions_default: tunnel, bridge, ferry
+
+  graph.dataaccess.default_type: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      # Inside the container; docker-compose maps this to localhost:45890.
+      bind_host: 0.0.0.0
+      max_request_header_size: 50k
+  request_log:
+    appenders: []
+  admin_connectors:
+    - type: http
+      port: 8991
+      bind_host: 0.0.0.0
+
+logging:
+  level: INFO

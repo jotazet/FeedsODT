@@ -1,0 +1,20 @@
+{
+  "distance_influence": 45,
+  "priority": [
+    { "if": "!bus_access", "multiply_by": "0" },
+    { "if": "road_class == TRACK", "multiply_by": "0" },
+    { "if": "road_class == SERVICE", "multiply_by": "0.1" },
+    { "if": "road_class == LIVING_STREET", "multiply_by": "0.1" },
+    { "if": "road_class == RESIDENTIAL", "multiply_by": "0.15" },
+    { "if": "road_class == UNCLASSIFIED", "multiply_by": "0.3" },
+    { "if": "road_class == TERTIARY", "multiply_by": "0.5" },
+    { "if": "road_class == SECONDARY", "multiply_by": "0.8" }
+  ],
+  "speed": [
+    { "if": "road_environment == FERRY", "limit_to": "ferry_speed" },
+    { "else_if": "bus_access && car_average_speed < 10", "limit_to": "10" },
+    { "else": "", "limit_to": "car_average_speed * 0.9" },
+    { "if": "true", "limit_to": "max_speed * 0.9" },
+    { "if": "true", "limit_to": "100" }
+  ]
+}
