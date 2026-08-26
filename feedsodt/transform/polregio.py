@@ -45,7 +45,7 @@ import re
 import shutil
 import zipfile
 from collections import Counter, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import feedinfo
@@ -101,6 +101,23 @@ CATEGORY_COLORS: dict[str, str] = {
 #: w tym samym pliku odpowiednik bez P.
 _ACCELERATED = re.compile(r"^(R|K\d+|S\d+|M\d+)P$")
 
+#: Poprawki błędnie oznaczonych pociągów: numer -> właściwa kategoria.
+#:
+#: Wpisy dokładamy tylko wtedy, gdy błąd da się wykazać danymi, a nie
+#: podejrzeniem. Każdy z nich znika, gdy przewoźnik poprawi źródło — warto
+#: więc od czasu do czasu sprawdzić, czy jeszcze coś zmieniają.
+#:
+#: ``33135``: POLREGIO oznacza jeden leg tego pociągu jako ``K3P`` zamiast
+#: ``K33P`` — najpewniej zgubiona trójka. Że to błąd, widać z trzech rzeczy:
+#: K3 i K3P obsługują korytarz Katowice — Kraków Płaszów / Tarnów i te 13
+#: kursów to jedyne K3P na odcinku Olkusz — Kraków Główny; numer 33135 należy
+#: do numeracji linii K33 (33102, 33118, 33145); a drugi leg tego samego
+#: pociągu w tej samej służbie jest oznaczony K33. Bez poprawki oba legi mają
+#: różne kategorie, więc nie zostaną sklejone i zostaje dziura w sieci.
+TRAIN_CATEGORY_FIXES: dict[str, str] = {
+    "33135": "K33",
+}
+
 #: Rozwinięcia skrótów, których jesteśmy pewni — trafiają do
 #: ``route_long_name``. Kody typu K7, K33P czy RP to oznaczenia linii nadawane
 #: przez organizatorów wojewódzkich; świadomie ich nie rozwijamy, bo zmyślona
@@ -115,7 +132,7 @@ CATEGORY_NAMES = {
 }
 
 #: Tabele przepisywane od nowa; reszta jest kopiowana bajt w bajt.
-REBUILT = ("routes.txt", "trips.txt", "stops.txt", "feed_info.txt")
+REBUILT = ("routes.txt", "trips.txt", "stops.txt", "stop_times.txt", "feed_info.txt")
 
 ROUTE_COLUMNS = (
     "route_id",
@@ -157,11 +174,15 @@ class RebuildStats:
     routes_after: int = 0
     #: Trasy, którym sufiks „P" (przyspieszony) sprowadzono do wariantu zwykłego.
     accelerated_merged: int = 0
+    #: Kursy z poprawioną kategorią — patrz TRAIN_CATEGORY_FIXES.
+    category_fixed: int = 0
     relations: int = 0
     trips: int = 0
     headsigns_filled: int = 0
     route_type_fixed: int = 0
     skipped_trips: int = 0
+    #: Legi wchłonięte przez kurs poprzedzający — patrz _merge_plan.
+    merged_legs: int = 0
     stops_before: int = 0
     stops_after: int = 0
     stops_dropped: int = 0
@@ -184,33 +205,75 @@ def normalize_category(category: str) -> str:
     return category[:-1] if _ACCELERATED.match(category) else category
 
 
+def _trip_categories(
+    trips: list[dict[str, str]], categories: dict[str, str], stats: RebuildStats
+) -> dict[str, str]:
+    """Kategoria każdego kursu, z uwzględnieniem poprawek błędnych oznaczeń.
+
+    Kategoria bierze się z trasy, ale przewoźnik potrafi ją pomylić przy
+    pojedynczym pociągu — patrz TRAIN_CATEGORY_FIXES.
+    """
+    result: dict[str, str] = {}
+    for trip in trips:
+        category = categories.get(trip["route_id"], "")
+        correction = TRAIN_CATEGORY_FIXES.get(trip.get("trip_short_name", "").strip())
+        if correction is not None and correction != category:
+            category = correction
+            stats.category_fixed += 1
+        result[trip["trip_id"]] = category
+    return result
+
+
 def _slug(text: str) -> str:
     """Nazwa stacji -> fragment identyfikatora: GDYNIA_GLOWNA."""
     return re.sub(r"[^A-Za-z0-9]+", "_", text.translate(_TRANSLIT)).strip("_").upper()
 
 
-def _scan_stop_times(
-    archive: zipfile.ZipFile,
-) -> tuple[dict[str, str], dict[str, str], set[str]]:
-    """Jedno przejście przez stop_times.txt: pierwszy i ostatni przystanek
-    każdego kursu oraz zbiór faktycznie odwiedzanych przystanków.
+@dataclass
+class _Legs:
+    """Co wiadomo o każdym kursie po jednym przejściu przez stop_times.txt."""
+
+    first: dict[str, str] = field(default_factory=dict)
+    last: dict[str, str] = field(default_factory=dict)
+    used: set[str] = field(default_factory=set)
+    #: Największe ``stop_sequence`` kursu. Do przesunięcia numeracji przy
+    #: sklejaniu bierzemy właśnie je, a nie liczbę zatrzymań: w źródle 2571
+    #: kursów ma w numeracji luki, więc liczba przystanków bywa mniejsza od
+    #: maksimum i przesunięcie o nią zderzyłoby numery obu legów.
+    top: dict[str, int] = field(default_factory=dict)
+    #: Odjazd z pierwszego i przyjazd na ostatni przystanek, w sekundach.
+    #: GTFS dopuszcza godziny ponad 24:00, więc nie da się użyć time.
+    depart: dict[str, int] = field(default_factory=dict)
+    arrive: dict[str, int] = field(default_factory=dict)
+
+
+def _seconds(value: str) -> int:
+    hours, minutes, seconds = (int(part) for part in value.split(":"))
+    return hours * 3600 + minutes * 60 + seconds
+
+
+def _scan_stop_times(archive: zipfile.ZipFile) -> _Legs:
+    """Jedno przejście przez stop_times.txt.
 
     Plik ma 42 MB, więc czytamy strumieniowo i trzymamy tylko to, co wyżej
     potrzebne — nie całe sekwencje.
     """
-    first: dict[str, str] = {}
-    last: dict[str, str] = {}
-    used: set[str] = set()
+    legs = _Legs()
     with archive.open("stop_times.txt") as raw:
         reader = csv.DictReader(io.TextIOWrapper(raw, encoding="utf-8-sig", newline=""))
         for row in reader:
             trip = row["trip_id"]
             stop = row["stop_id"]
-            if trip not in first:
-                first[trip] = stop
-            last[trip] = stop
-            used.add(stop)
-    return first, last, used
+            if trip not in legs.first:
+                legs.first[trip] = stop
+                legs.depart[trip] = _seconds(row["departure_time"])
+            legs.last[trip] = stop
+            legs.arrive[trip] = _seconds(row["arrival_time"])
+            order = int(row["stop_sequence"])
+            if order > legs.top.get(trip, -1):
+                legs.top[trip] = order
+            legs.used.add(stop)
+    return legs
 
 
 def _route_type_for(category: str) -> str:
@@ -244,7 +307,13 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
         agencies = read_table(archive, "agency.txt")
         agency_id = agencies[0].get("agency_id", "PR") if agencies else "PR"
         trips = read_table(archive, "trips.txt")
-        first, last, used = _scan_stop_times(archive)
+        legs = _scan_stop_times(archive)
+        trip_categories = _trip_categories(trips, categories, stats)
+        absorbed = _merge_plan(trips, trip_categories, legs, stats)
+        # Po sklejeniu kraniec kursu to kraniec ostatniego legu — relacja
+        # i kierunkowskaz muszą się liczyć z nowych krańców, nie ze starych.
+        first, last, used = legs.first, legs.last, legs.used
+        trips = [trip for trip in trips if trip["trip_id"] not in absorbed]
 
         stats.routes_before = len(categories)
         stats.accelerated_merged = sum(
@@ -255,7 +324,9 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
         stats.trips = len(trips)
         stats.stops_before = len(stop_rows)
 
-        routes, assignment = _build_routes(trips, categories, first, last, stop_names, stats)
+        routes, assignment = _build_routes(
+            trips, trip_categories, first, last, stop_names, stats
+        )
         stats.routes_after = len(routes)
 
         platforms = PlatformIndex.load(ctx.platforms_cache, ctx.session)
@@ -276,6 +347,7 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
                     shutil.copyfileobj(src, target, 256 * 1024)
 
             write_table(out, "stops.txt", STOP_COLUMNS, stops, stamp)
+            _write_stop_times(out, archive, absorbed, stamp)
             _write_routes(out, routes, agency_id, stamp)
             _write_trips(out, trips, assignment, stamp, stats)
             _write_feed_info(out, window, len(routes), stamp)
@@ -308,6 +380,18 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
         stats.coords_station,
         stats.coords_no_code,
     )
+    if stats.category_fixed:
+        log.info(
+            "polregio: %d kursom poprawiono błędnie oznaczoną kategorię "
+            "(TRAIN_CATEGORY_FIXES)",
+            stats.category_fixed,
+        )
+    if stats.merged_legs:
+        log.info(
+            "polregio: sklejono %d rozciętych legów — źródło tnie pociąg tam, gdzie "
+            "zmienia się kod linii, i gubi przy tym stację przesiadkową",
+            stats.merged_legs,
+        )
     if stats.skipped_trips:
         log.warning("polregio: %d kursów bez przystanków — pominięte", stats.skipped_trips)
     return stats
@@ -322,9 +406,101 @@ class _Route:
     color: str
 
 
+def _merge_plan(
+    trips: list[dict[str, str]],
+    trip_categories: dict[str, str],
+    legs: _Legs,
+    stats: RebuildStats,
+) -> dict[str, tuple[str, int]]:
+    """Skleja kursy, które źródło rozcięło w miejscu zmiany kategorii.
+
+    POLREGIO tnie pociąg tam, gdzie zmienia się kod linii, i **gubi przy tym
+    stację przesiadkową**: leg kończący zatrzymuje się jeden przystanek przed
+    nią, a leg zaczynający startuje na niej. Na linii K33 widać to w obie
+    strony — do Wolbromia leg kończy w Bukownie, a następny rusza z Olkusza;
+    w drugą stronę leg kończy w Jaroszowcu Olkuskim, a następny znów z Olkusza.
+    Skutek: oba legi nie mają ani jednego wspólnego przystanku, więc w grafie
+    GTFS nie istnieje krawędź, którą planer mógłby je połączyć — podróży
+    Kraków — Wolbrom po prostu nie da się wyznaczyć.
+
+    Sklejenie nie wymaga zmyślania czasów: brakujący odcinek staje się zwykłą
+    parą kolejnych przystanków, bo koniec jednego legu i początek drugiego są
+    już w danych.
+
+    Kryteria są celowo ostre, bo pomyłka zlepiłaby dwa różne pociągi:
+    ten sam numer, ta sama służba, ta sama kategoria po normalizacji (a więc
+    i ten sam typ pojazdu), czasy nienachodzące i zero wspólnych przystanków.
+    Kolej i zastępczy autobus mają różne kategorie, więc nigdy się nie skleją.
+
+    Zwraca ``{trip_id wchłoniętego legu: (trip_id celu, przesunięcie numeracji)}``.
+    """
+    grouped: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for trip in trips:
+        number = trip.get("trip_short_name", "").strip()
+        if number and trip["trip_id"] in legs.first:
+            grouped[(number, trip["service_id"])].append(trip["trip_id"])
+
+    absorbed: dict[str, tuple[str, int]] = {}
+
+    for members in grouped.values():
+        if len(members) < 2:
+            continue
+        members.sort(key=lambda trip_id: legs.depart[trip_id])
+        target = members[0]
+        offset = legs.top[target]
+        for follower in members[1:]:
+            if trip_categories.get(target) != trip_categories.get(follower):
+                break
+            if legs.depart[follower] < legs.arrive[target]:
+                break
+            if legs.last[target] == legs.first[follower]:
+                break  # wspólny przystanek — to przesiadka, nie kontynuacja
+            absorbed[follower] = (target, offset)
+            # Po przesunięciu najwyższy numer legu to offset + jego maksimum;
+            # kolejny leg musi zacząć się ponad tym.
+            offset += legs.top[follower]
+            legs.top[target] = offset
+            # Kraniec i czas przyjazdu celu przesuwają się na koniec legu.
+            legs.last[target] = legs.last[follower]
+            legs.arrive[target] = legs.arrive[follower]
+    stats.merged_legs = len(absorbed)
+    return absorbed
+
+
+def _write_stop_times(
+    out: zipfile.ZipFile,
+    archive: zipfile.ZipFile,
+    absorbed: dict[str, tuple[str, int]],
+    stamp: tuple[int, ...],
+) -> None:
+    """Przepisuje stop_times, przenosząc wchłonięte legi pod kurs docelowy.
+
+    Strumieniowo, bo plik ma 42 MB i nie ma powodu trzymać go w pamięci —
+    całe przemapowanie to podmiana ``trip_id`` i przesunięcie ``stop_sequence``.
+    """
+    with archive.open("stop_times.txt") as raw_in:
+        reader = csv.DictReader(io.TextIOWrapper(raw_in, encoding="utf-8-sig", newline=""))
+        columns = list(reader.fieldnames or [])
+        with out.open(zip_entry("stop_times.txt", stamp), "w") as raw_out:
+            stream = io.TextIOWrapper(raw_out, encoding="utf-8", newline="")
+            writer = csv.DictWriter(
+                stream, fieldnames=columns, extrasaction="ignore", **CSV_DIALECT
+            )
+            writer.writeheader()
+            for row in reader:
+                moved = absorbed.get(row["trip_id"])
+                if moved is not None:
+                    target, offset = moved
+                    row["trip_id"] = target
+                    row["stop_sequence"] = str(int(row["stop_sequence"]) + offset)
+                writer.writerow(row)
+            stream.flush()
+            stream.detach()
+
+
 def _build_routes(
     trips: list[dict[str, str]],
-    categories: dict[str, str],
+    trip_categories: dict[str, str],
     first: dict[str, str],
     last: dict[str, str],
     stop_names: dict[str, str],
@@ -348,7 +524,7 @@ def _build_routes(
             continue
         origin = stop_names.get(first[trip_id], first[trip_id])
         destination = stop_names.get(last[trip_id], last[trip_id])
-        category = categories.get(trip["route_id"], "").strip()
+        category = trip_categories.get(trip_id, "")
         # Krańce sortujemy, żeby oba kierunki tej samej relacji dały ten sam klucz.
         low, high = sorted((origin, destination))
         relations[(category, low, high)].append(trip)

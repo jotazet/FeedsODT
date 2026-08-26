@@ -13,9 +13,10 @@ from pathlib import Path
 import pytest
 
 from conftest import read_gtfs, write_gtfs
-from feedsodt.transform import TransformError, get_transform
+from feedsodt.transform import Context, TransformError, get_transform
 from feedsodt.transform.polregio import (
     CATEGORY_COLORS,
+    TRAIN_CATEGORY_FIXES,
     POLREGIO_RED,
     normalize_category,
     rebuild,
@@ -56,14 +57,14 @@ STOPS = [
 ]
 
 
-def feed(tmp_path: Path, trasy: list[tuple[str, str, list[str]]]) -> Path:
+def feed(tmp_path: Path, trasy: list[tuple[str, str, list[str]]], numery=None) -> Path:
     """Buduje feed w formacie Polregio.
 
     `trasy` to lista (route_id, kategoria, sekwencja stop_id) — po jednym kursie
     na trasę, tak jak w oryginale.
     """
     routes, trips, stop_times = [], [], []
-    for route_id, kategoria, sekwencja in trasy:
+    for indeks, (route_id, kategoria, sekwencja) in enumerate(trasy):
         routes.append(
             {
                 "route_id": route_id,
@@ -84,17 +85,20 @@ def feed(tmp_path: Path, trasy: list[tuple[str, str, list[str]]]) -> Path:
                 "trip_id": trip_id,
                 "trip_headsign": "",
                 "block_id": "",
-                "trip_short_name": f"{route_id} ",  # ogon spacji jak w oryginale
+                "trip_short_name": (
+                    f"{numery[indeks]} " if numery else f"{route_id} "
+                ),  # ogon spacji jak w oryginale
                 "wheelchair_accessible": "0",
                 "bikes_allowed": "1",
             }
         )
         for index, stop in enumerate(sekwencja, start=1):
+            godzina = 7 + index + indeks * 4
             stop_times.append(
                 {
                     "trip_id": trip_id,
-                    "arrival_time": f"{7 + index:02d}:00:00",
-                    "departure_time": f"{7 + index:02d}:00:00",
+                    "arrival_time": f"{godzina:02d}:00:00",
+                    "departure_time": f"{godzina:02d}:00:00",
                     "stop_id": stop,
                     "stop_sequence": str(index),
                 }
@@ -253,6 +257,126 @@ class TestWariantPrzyspieszony:
         rebuild(source, dest)
 
         assert read_gtfs(dest, "routes.txt")[0]["route_color"] == CATEGORY_COLORS["K33"]
+
+
+class TestSklejanieRozcietychKursow:
+    """Źródło tnie pociąg tam, gdzie zmienia się kod linii, i gubi przy tym
+    stację przesiadkową: na K33 leg do Wolbromia kończy w Bukownie, a następny
+    rusza z Olkusza. Oba legi nie mają wtedy ani jednego wspólnego przystanku,
+    więc planer nie ma czym ich połączyć."""
+
+    def rozciety(self, tmp_path, kategorie=("K33P", "K33"), numer="33118"):
+        """Dwa legi tego samego pociągu, bez wspólnego przystanku."""
+        return feed(
+            tmp_path,
+            [
+                ("R-1-01-51-A", kategorie[0], ["G1", "R1"]),
+                ("R-2-01-51-B", kategorie[1], ["H1"]),
+            ],
+            numery=(numer, numer),
+        )
+
+    def test_legi_ladują_w_jednym_kursie(self, tmp_path):
+        dest = tmp_path / "fixed.zip"
+        rebuild(self.rozciety(tmp_path), dest, Context())
+
+        trips = read_gtfs(dest, "trips.txt")
+        czasy = read_gtfs(dest, "stop_times.txt")
+
+        assert len(trips) == 1
+        assert len(czasy) == 3
+        assert {t["trip_id"] for t in trips} == {c["trip_id"] for c in czasy}
+
+    def test_numeracja_nie_koliduje(self, tmp_path):
+        """Przesunięcie liczymy z max(stop_sequence), nie z liczby przystanków —
+        w źródle 2571 kursów ma w numeracji luki."""
+        dest = tmp_path / "fixed.zip"
+        rebuild(self.rozciety(tmp_path), dest, Context())
+
+        numery = [int(c["stop_sequence"]) for c in read_gtfs(dest, "stop_times.txt")]
+
+        assert len(numery) == len(set(numery))
+        assert numery == sorted(numery)
+
+    def test_kierunkowskaz_z_krańca_po_sklejeniu(self, tmp_path):
+        """Kraniec kursu to teraz koniec ostatniego legu, nie pierwszego."""
+        dest = tmp_path / "fixed.zip"
+        rebuild(self.rozciety(tmp_path), dest, Context())
+
+        assert read_gtfs(dest, "trips.txt")[0]["trip_headsign"] == "Hel"
+
+    def test_rozne_kategorie_nie_sa_sklejane(self, tmp_path):
+        """Kolej i autobus zastępczy to naprawdę różne pojazdy."""
+        dest = tmp_path / "fixed.zip"
+        rebuild(self.rozciety(tmp_path, kategorie=("R", "BUS")), dest, Context())
+
+        assert len(read_gtfs(dest, "trips.txt")) == 2
+
+    def test_wspolny_przystanek_to_przesiadka_a_nie_kontynuacja(self, tmp_path):
+        source = feed(
+            tmp_path,
+            [("R-1-01-51-A", "K33", ["G1", "R1"]), ("R-2-01-51-B", "K33", ["R1", "H1"])],
+            numery=("33118", "33118"),
+        )
+        dest = tmp_path / "fixed.zip"
+        rebuild(source, dest, Context())
+
+        assert len(read_gtfs(dest, "trips.txt")) == 2
+
+    def test_rozne_numery_pociagu_nie_sa_sklejane(self, tmp_path):
+        dest = tmp_path / "fixed.zip"
+        rebuild(self.rozciety(tmp_path, numer="33118"), dest, Context())
+        source = feed(
+            tmp_path,
+            [("R-1-01-51-A", "K33", ["G1", "R1"]), ("R-2-01-51-B", "K33", ["H1"])],
+            numery=("33118", "33999"),
+        )
+        rebuild(source, tmp_path / "inne.zip", Context())
+
+        assert len(read_gtfs(tmp_path / "inne.zip", "trips.txt")) == 2
+
+
+class TestPoprawkiOznaczen:
+    """Przewoźnik potrafi pomylić kategorię przy pojedynczym pociągu.
+    Pociąg 33135 ma jeden leg oznaczony K3P zamiast K33P — a K3 obsługuje
+    zupełnie inny korytarz (Katowice — Kraków Płaszów). Bez poprawki legi mają
+    różne kategorie, więc nie zostaną sklejone i zostaje dziura w sieci."""
+
+    def test_poprawka_wchodzi_i_umozliwia_sklejenie(self, tmp_path):
+        source = feed(
+            tmp_path,
+            [
+                ("R-1-01-51-K33", "K33", ["G1", "R1"]),
+                ("R-2-01-51-K3P", "K3P", ["H1"]),
+            ],
+            numery=("33135", "33135"),
+        )
+        dest = tmp_path / "fixed.zip"
+        stats = rebuild(source, dest, Context())
+
+        routes = read_gtfs(dest, "routes.txt")
+
+        assert stats.category_fixed == 1
+        assert [r["route_short_name"] for r in routes] == ["K33"]
+        assert len(read_gtfs(dest, "trips.txt")) == 1
+
+    def test_pociag_bez_wpisu_zostaje_nietkniety(self, tmp_path):
+        source = feed(
+            tmp_path,
+            [("R-1-01-51-K3", "K3", ["G1", "R1"]), ("R-2-01-51-K3", "K3", ["H1"])],
+            numery=("30001", "30001"),
+        )
+        dest = tmp_path / "fixed.zip"
+        stats = rebuild(source, dest, Context())
+
+        assert stats.category_fixed == 0
+        assert read_gtfs(dest, "routes.txt")[0]["route_short_name"] == "K3"
+
+    def test_tabela_poprawek_wskazuje_istniejace_kategorie(self):
+        """Literówka w tabeli stworzyłaby linię, której nie ma w rozkładzie."""
+        for numer, kategoria in TRAIN_CATEGORY_FIXES.items():
+            assert numer.isdigit(), numer
+            assert kategoria == normalize_category(kategoria), kategoria
 
 
 class TestUzupelnienia:
