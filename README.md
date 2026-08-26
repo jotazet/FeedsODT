@@ -217,7 +217,11 @@ przebudowie przez routing po OSM: kolej i tramwaj po torach
 jako kontenery z profilu `shape` — patrz [`shaper/`](shaper/README.md).
 
 ```bash
-curl -o osm/poland-latest.osm.pbf https://download.geofabrik.de/europe/poland-latest.osm.pbf
+mkdir -p osm
+# -L jest konieczne: Geofabrik odbija 302 na nazwę z datą (poland-260823.osm.pbf).
+# Bez niego zapisze się 242-bajtowa strona przekierowania, a silnik wywali się
+# przy imporcie. --fail pilnuje, żeby błąd HTTP nie wylądował w pliku jako treść.
+curl -L --fail -o osm/poland-latest.osm.pbf https://download.geofabrik.de/europe/poland-latest.osm.pbf
 docker compose --profile shape up -d
 ```
 
@@ -308,7 +312,8 @@ Zmierzone na komplecie 13 feedów, z ciepłym cache'em geometrii:
 | przebieg wszystkich źródeł | **40 s**, szczyt RSS **125 MB** |
 | najcięższe źródło (polregio) | 10 s, szczyt RSS 119 MB |
 | pozostałe źródła | poniżej 2 s, 50–80 MB (z czego ~50 MB to sam Python) |
-| silniki routujące, w spoczynku | rail 430 MB, bus 64 MB |
+| silniki routujące (gotowy graf) | rail 53–70 MB, bus 835–875 MB |
+| import grafu, jednorazowo | do 2,6 GB — patrz `shaper/README.md` |
 | pierwsze liczenie geometrii polregio | ok. 3,5 min, jednorazowo |
 
 W praktyce w slocie budzi się jedno źródło, więc typowa noc to kilkanaście
@@ -484,17 +489,48 @@ powstał) i `gtfs/.work/` (katalog roboczy, czyszczony przy każdym źródle).
 
 | katalog | waga | co daje |
 |---|---|---|
-| `osm/poland-latest.osm.pbf` | 2,0 GB | bez niego silniki nie wystartują; do pobrania z Geofabrika |
-| `shaper/cache/` | 641 MB | gotowe grafy routingu — bez nich pierwszy start importuje je przez ok. 5 minut |
+| `osm/poland-latest.osm.pbf` | 2,0 GB | **wymagany** — kopiowanie tylko oszczędza pobieranie; instrukcja niżej |
+| `shaper/cache/` | 641 MB | gotowe grafy routingu. **Na maszynie poniżej 8 GB RAM to nie jest opcja, tylko konieczność** — import zajmuje do 2,6 GB i wywróci mniejszy serwer. Praca na gotowym grafie to ok. 1 GB |
 | `gtfs/.cache/` | 31 MB | policzona geometria i lista peronów; bez nich pierwsze kształtowanie POLREGIO trwa ok. 3,5 min |
 | `gtfs/*.zip` | 116 MB | feedy są od razu na miejscu, zamiast czekać na pierwszy przebieg |
 
 Sam kod z konfiguracją to 3 MB.
 
+**Kolejność ma znaczenie.** Wycinek OSM musi być na miejscu **przed** pierwszym
+`up`. Jeśli go nie ma, Docker utworzy w tym miejscu **katalog** (tak działają
+bind mounty do nieistniejących ścieżek) i od tej pory `curl` będzie odbijał się
+od „Is a directory", a silnik kolejowy — od „no OSM file mounted".
+
 ```bash
 cp .env.example .env        # i przejrzyj: port, ścieżka do OSM, pamięć JVM
+
+mkdir -p osm
+# -L jest konieczne: Geofabrik odbija 302 na nazwę z datą (poland-260823.osm.pbf).
+# Bez niego zapisze się 242-bajtowa strona przekierowania, a silnik wywali się
+# przy imporcie. --fail pilnuje, żeby błąd HTTP nie wylądował w pliku jako treść.
+curl -L --fail -o osm/poland-latest.osm.pbf https://download.geofabrik.de/europe/poland-latest.osm.pbf
+
+# sprawdź, zanim ruszysz dalej — ma być ok. 2,0 GB i sygnatura OSMHeader
+ls -lh osm/poland-latest.osm.pbf && head -c 16 osm/poland-latest.osm.pbf | xxd
+
 docker compose --profile shape up -d --build
 ```
+
+Gdyby Docker zdążył założyć katalog, sprzątnięcie wygląda tak (katalog należy
+do roota, bo utworzył go demon):
+
+```bash
+docker compose --profile shape down
+sudo rm -rf osm/poland-latest.osm.pbf
+```
+
+i wracasz do pobierania powyżej.
+
+Obraz silnika kolejowego **powstaje lokalnie** — nie ma go w żadnym rejestrze,
+bo jest budowany z OpenRailRouting mavenem. Pierwszy `up` na nowej maszynie musi
+go zbudować (kilka minut, klonuje repozytorium i kompiluje). Stąd `--build`
+w poleceniu wyżej i `pull_policy: build` w compose — bez tego `up` bez `--build`
+próbowałby go ściągnąć i kończył na mylącym „pull access denied".
 
 `--profile shape` jest obowiązkowe, jeśli którekolwiek źródło ma pole `shape` —
 bez niego silniki nie wstaną i pięć feedów będzie zawodzić co cykl (poprzednie

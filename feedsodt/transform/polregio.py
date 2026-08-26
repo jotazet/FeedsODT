@@ -90,6 +90,17 @@ CATEGORY_COLORS: dict[str, str] = {
     "M7": "B6CD8F",
 }
 
+#: Sufiks „P" w kodzie linii znaczy „przyspieszony" — to wariant tej samej
+#: linii, nie osobna linia. Przewoźnik wystawia go jako oddzielną kategorię,
+#: więc ten sam pociąg potrafi jechać najpierw jako K33P, potem jako K33:
+#: planer pokazuje dwie linie w dwóch kolorach tam, gdzie pasażer widzi jedną.
+#:
+#: Wzorzec jest celowo wąski — pasuje tylko do kodów linii (``RP``, ``K33P``,
+#: ``S31P``, ``M7P``), a nie do wszystkiego, co kończy się na P. Sprawdzone na
+#: żywym feedzie: pięć takich kategorii (RP, K3P, K7P, K33P, K52P) i każda ma
+#: w tym samym pliku odpowiednik bez P.
+_ACCELERATED = re.compile(r"^(R|K\d+|S\d+|M\d+)P$")
+
 #: Rozwinięcia skrótów, których jesteśmy pewni — trafiają do
 #: ``route_long_name``. Kody typu K7, K33P czy RP to oznaczenia linii nadawane
 #: przez organizatorów wojewódzkich; świadomie ich nie rozwijamy, bo zmyślona
@@ -144,6 +155,8 @@ _TRANSLIT = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACEL
 class RebuildStats:
     routes_before: int = 0
     routes_after: int = 0
+    #: Trasy, którym sufiks „P" (przyspieszony) sprowadzono do wariantu zwykłego.
+    accelerated_merged: int = 0
     relations: int = 0
     trips: int = 0
     headsigns_filled: int = 0
@@ -159,6 +172,16 @@ class RebuildStats:
     coords_platform: int = 0
     coords_station: int = 0
     coords_no_code: int = 0
+
+
+def normalize_category(category: str) -> str:
+    """``K33P`` -> ``K33``, ``RP`` -> ``R``. Reszta bez zmian.
+
+    Wariant przyspieszony to ta sama linia — ma dostać ten sam identyfikator
+    trasy i tę samą barwę co wariant zwykły.
+    """
+    category = category.strip()
+    return category[:-1] if _ACCELERATED.match(category) else category
 
 
 def _slug(text: str) -> str:
@@ -215,7 +238,7 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
         stop_rows = read_table(archive, "stops.txt")
         stop_names = {row["stop_id"]: row["stop_name"] for row in stop_rows}
         categories = {
-            row["route_id"]: row["route_short_name"].strip()
+            row["route_id"]: normalize_category(row["route_short_name"])
             for row in read_table(archive, "routes.txt")
         }
         agencies = read_table(archive, "agency.txt")
@@ -224,6 +247,11 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
         first, last, used = _scan_stop_times(archive)
 
         stats.routes_before = len(categories)
+        stats.accelerated_merged = sum(
+            1
+            for row in read_table(archive, "routes.txt")
+            if normalize_category(row["route_short_name"]) != row["route_short_name"].strip()
+        )
         stats.trips = len(trips)
         stats.stops_before = len(stop_rows)
 
@@ -252,6 +280,12 @@ def rebuild(source: Path, dest: Path, ctx: Context | None = None) -> RebuildStat
             _write_trips(out, trips, assignment, stamp, stats)
             _write_feed_info(out, window, len(routes), stamp)
 
+    if stats.accelerated_merged:
+        log.info(
+            "polregio: %d tras z wariantem przyspieszonym (sufiks P) sprowadzono "
+            "do kategorii podstawowej",
+            stats.accelerated_merged,
+        )
     log.info(
         "polregio: %d tras -> %d kategorii (%d relacji), %d kursów, "
         "uzupełniono %d kierunkowskazów, naprawiono typ %d tras autobusowych",

@@ -17,6 +17,7 @@ from feedsodt.transform import TransformError, get_transform
 from feedsodt.transform.polregio import (
     CATEGORY_COLORS,
     POLREGIO_RED,
+    normalize_category,
     rebuild,
     text_color_for,
 )
@@ -208,6 +209,52 @@ class TestKonsolidacja:
         assert sorted(set(kierunki.values())) == ["0", "1"]
 
 
+class TestWariantPrzyspieszony:
+    """Sufiks „P" znaczy „przyspieszony" — to wariant tej samej linii, nie
+    osobna linia. Przewoźnik wystawia go jako oddzielną kategorię, więc ten sam
+    pociąg jedzie najpierw jako K33P, potem jako K33: planer pokazuje dwie linie
+    w dwóch kolorach tam, gdzie pasażer widzi jedną."""
+
+    @pytest.mark.parametrize(
+        "kategoria, oczekiwana",
+        [("K33P", "K33"), ("RP", "R"), ("K7P", "K7"), ("S31P", "S31"), ("M7P", "M7")],
+    )
+    def test_sufiks_p_znika(self, kategoria, oczekiwana):
+        assert normalize_category(kategoria) == oczekiwana
+
+    @pytest.mark.parametrize(
+        "kategoria", ["K33", "R", "BUS", "IR", "Os", "SKA3", "sR", "K7 BUS", "K22"]
+    )
+    def test_reszta_zostaje_nietknieta(self, kategoria):
+        """Wzorzec jest wąski celowo — nie wszystko, co kończy się na P, jest
+        wariantem przyspieszonym."""
+        assert normalize_category(kategoria) == kategoria
+
+    def test_wariant_przyspieszony_ląduje_w_tej_samej_trasie(self, tmp_path):
+        source = feed(
+            tmp_path,
+            [
+                ("R-1-01-51-K33", "K33", ["G1", "H1"]),
+                ("R-2-01-51-K33P", "K33P", ["G1", "R1"]),
+            ],
+        )
+        dest = tmp_path / "fixed.zip"
+        rebuild(source, dest)
+
+        routes = read_gtfs(dest, "routes.txt")
+
+        assert len(routes) == 1
+        assert routes[0]["route_short_name"] == "K33"
+
+    def test_wariant_przyspieszony_dostaje_barwę_linii_podstawowej(self, tmp_path):
+        """To był widoczny objaw: ten sam pociąg w dwóch kolorach."""
+        source = feed(tmp_path, [("R-1-01-51-K33P", "K33P", ["G1", "H1"])])
+        dest = tmp_path / "fixed.zip"
+        rebuild(source, dest)
+
+        assert read_gtfs(dest, "routes.txt")[0]["route_color"] == CATEGORY_COLORS["K33"]
+
+
 class TestUzupelnienia:
     def test_kierunkowskaz_to_stacja_docelowa(self, przebudowany):
         """W oryginale trip_headsign jest pusty we wszystkich 39766 kursach."""
@@ -243,10 +290,10 @@ class TestUzupelnienia:
         assert agency["agency_name"] == "POLREGIO"
 
     def test_nazwa_tylko_dla_znanych_kategorii(self, tmp_path):
-        """Kody linii typu K33P świadomie nie dostają zmyślonego rozwinięcia."""
+        """Kody linii typu K33 świadomie nie dostają zmyślonego rozwinięcia."""
         source = feed(
             tmp_path,
-            [("R-1-01-51-R", "R", ["G1", "H1"]), ("R-2-01-51-K33P", "K33P", ["G1", "R1"])],
+            [("R-1-01-51-R", "R", ["G1", "H1"]), ("R-2-01-51-K33", "K33", ["G1", "R1"])],
         )
         dest = tmp_path / "fixed.zip"
         rebuild(source, dest)
@@ -254,7 +301,7 @@ class TestUzupelnienia:
         nazwy = {r["route_short_name"]: r["route_long_name"] for r in read_gtfs(dest, "routes.txt")}
 
         assert nazwy["R"] == "REGIO"
-        assert nazwy["K33P"] == ""
+        assert nazwy["K33"] == ""
 
 
 class TestPerony:

@@ -72,7 +72,11 @@ oraz w `index.json`.
 
 ```bash
 # pobranie wycinka
-curl -o osm/poland-latest.osm.pbf https://download.geofabrik.de/europe/poland-latest.osm.pbf
+mkdir -p osm
+# -L jest konieczne: Geofabrik odbija 302 na nazwę z datą (poland-260823.osm.pbf).
+# Bez niego zapisze się 242-bajtowa strona przekierowania, a silnik wywali się
+# przy imporcie. --fail pilnuje, żeby błąd HTTP nie wylądował w pliku jako treść.
+curl -L --fail -o osm/poland-latest.osm.pbf https://download.geofabrik.de/europe/poland-latest.osm.pbf
 
 # podgląd importu
 docker compose --profile shape logs -f railrouting graphhopper-bus
@@ -123,9 +127,40 @@ rm -rf shaper/cache/rail shaper/cache/bus
 docker compose --profile shape up -d      # import, ok. 5 minut łącznie
 ```
 
-Import jest pamięciożerny — autobusowy potrafi sięgnąć 2,6 GB. Domyślnie
-`-Xmx4g` na silnik; w `.env` tego repozytorium stoi 2g/3g, co wystarczyło.
-Nadpisuje się przez `RAIL_JAVA_OPTS` / `BUS_JAVA_OPTS`.
+## Na maszynie poniżej 8 GB nie importuj — skopiuj graf
+
+To jest najważniejsza rzecz w tym pliku. Import i praca to dwa zupełnie różne
+budżety pamięci:
+
+| | kolej | autobus | razem |
+|---|---|---|---|
+| **import** grafu ogólnopolskiego | ~1 GB | **do 2,6 GB** | ponad 3 GB |
+| **praca** na gotowym grafie | 53–70 MB | 835–875 MB | **ok. 1 GB** |
+
+Na VPS-ie z 4 GB import autobusowego grafu wywróci maszynę — JVM zajmie
+wszystko, co jest, system wejdzie w swap i przestanie odpowiadać. Dlatego
+kontenery mają twarde `mem_limit` (1200 MB i 1800 MB): przekroczenie ubija
+proces w kontenerze, zamiast dławić hosta. Pod tymi limitami import **się nie
+uda i tak ma być**.
+
+Na małej maszynie graf się przenosi, nie buduje:
+
+```bash
+# na maszynie z zapasem pamięci (8 GB+)
+docker compose --profile shape down
+rm -rf shaper/cache/rail shaper/cache/bus
+RAIL_MEM_LIMIT=4g BUS_MEM_LIMIT=6g RAIL_JAVA_OPTS="-Xmx3g" BUS_JAVA_OPTS="-Xmx5g" \
+  docker compose --profile shape up -d
+
+# potem 641 MB na serwer docelowy
+rsync -a shaper/cache/ rocky@serwer:/sciezka/FeedsODT/shaper/cache/
+```
+
+Plik `.osm.pbf` na serwerze docelowym i tak musi być — entrypoint sprawdza jego
+obecność — ale nikt go już nie czyta, dopóki katalog grafu jest niepusty.
+
+Wartości nadpisuje się przez `RAIL_JAVA_OPTS` / `BUS_JAVA_OPTS` i
+`RAIL_MEM_LIMIT` / `BUS_MEM_LIMIT` w `.env`.
 
 ## Konflikt portów
 

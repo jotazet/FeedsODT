@@ -61,6 +61,11 @@ services:
     profiles: ["shape"]
     build: ./shaper/openrailrouting
     image: feedsodt-railrouting:v1.1
+    # Obraz powstaje wyłącznie lokalnie — nie ma go w żadnym rejestrze. Bez tej
+    # linii `docker compose up` bez --build próbuje go ściągnąć i kończy na
+    # "pull access denied", co wygląda na problem z uprawnieniami, a jest
+    # zwykłym brakiem obrazu.
+    pull_policy: build
     container_name: feedsodt-railrouting
     restart: unless-stopped
     ports:
@@ -79,7 +84,15 @@ services:
       # ze starym modelem i nikt tego nie widzi w logach.
       - ./shaper/openrailrouting/config.yml:/app/config.yml:ro
     environment:
-      JAVA_OPTS: ${RAIL_JAVA_OPTS:--Xmx4g -Xms1g}
+      JAVA_OPTS: ${RAIL_JAVA_OPTS:--Xmx1g -Xms128m}
+    # Twardy limit, żeby silnik nie mógł położyć hosta — przy przekroczeniu
+    # jądro ubija proces w kontenerze, zamiast dławić całą maszynę.
+    #
+    # Wartości są pod PRACĘ NA GOTOWYM GRAFIE: zmierzone zużycie to 53–70 MB
+    # (kolej) i 835–875 MB (autobus). IMPORT grafu ogólnopolskiego potrzebuje
+    # 2,6 GB i pod tymi limitami się nie uda — i tak ma być. Na maszynie poniżej
+    # 8 GB graf się kopiuje, nie importuje; patrz shaper/README.md.
+    mem_limit: ${RAIL_MEM_LIMIT:-1200m}
 
   graphhopper-bus:
     profiles: ["shape"]
@@ -95,4 +108,5 @@ services:
       - ./shaper/cache/bus:/graph-cache
       - ./shaper/graphhopper:/gh-config:ro
     environment:
-      JAVA_OPTS: ${BUS_JAVA_OPTS:--Xmx4g -Xms1g}
+      JAVA_OPTS: ${BUS_JAVA_OPTS:--Xmx1500m -Xms128m}
+    mem_limit: ${BUS_MEM_LIMIT:-1800m}
