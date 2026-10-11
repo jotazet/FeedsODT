@@ -82,6 +82,35 @@ curl -L --fail -o osm/poland-latest.osm.pbf https://download.geofabrik.de/europe
 docker compose --profile shape logs -f railrouting graphhopper-bus
 ```
 
+## Silniki tylko w nocy
+
+Silniki są potrzebne wyłącznie w slotach źródeł z polem `shape` — przebieg
+kształtowania trwa ok. minuty co kilka dni. Przez resztę czasu trzymały
+ok. 2 GB RAM-u (bus ~1,7 GB, kolej 0,2–0,5 GB). Grafy z `cache/` ładują się
+w kilka sekund, więc silniki mogą wstawać tylko na noc:
+
+```bash
+crontab -e      # wklej zawartość shaper/engines.crontab, popraw ścieżkę
+```
+
+`shaper/engines.sh start|stop` to zwykłe `docker compose --profile shape up -d`
+/ `stop` dla obu silników, bez przebudowy obrazu. Okno w
+`shaper/engines.crontab` (00:45–07:30, Europe/Warsaw) obejmuje wszystkie sloty
+z `shape` i ich ponowienia — **pilnuje tego `tests/test_engines_window.py`**.
+Dodajesz źródło z `shape` o innej godzinie? Test powie, czy trzeba poszerzyć
+okno.
+
+Czego się spodziewać:
+
+* **Silnik wyłączony w slocie** nic nie psuje: przebieg źródła kończy się
+  błędem, poprzednia wersja feedu zostaje opublikowana, idą ponowienia.
+* **Restart fetchera w dzień** (`FEEDSODT_RUN_ON_START=true`, np. przy
+  wdrożeniu) robi przebieg wszystkich źródeł — te z `shape` zawiodą, jeśli
+  silniki śpią. Przy wdrożeniu w dzień podnieś je ręcznie:
+  `shaper/engines.sh start`, a po przebiegu `shaper/engines.sh stop`.
+* `docker compose --profile shape up -d` przy wdrożeniu podnosi silniki jak
+  dotąd; o 07:30 cron je zatrzyma.
+
 ## Zmiana modelu wymaga przeliczenia grafu
 
 GraphHopper zapisuje profile w grafie i odmawia wczytania grafu zbudowanego

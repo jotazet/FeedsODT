@@ -1,0 +1,10 @@
+# Silniki routujące tylko w nocnym oknie kształtowania — patrz shaper/README.md,
+# „Silniki tylko w nocy". Instalacja: `crontab -e` i wklej poniższe, poprawiając
+# ścieżkę do repozytorium.
+#
+# Okno musi objąć każdy slot źródła z polem `shape` w config/sources.toml razem
+# z jego ponowieniami (FEEDSODT_RETRY_MINUTES). Pilnuje tego
+# tests/test_engines_window.py — przy dodaniu źródła poza oknem test padnie.
+CRON_TZ=Europe/Warsaw
+45 0 * * * /home/rocky/FeedsODT/shaper/engines.sh start 2>&1 | logger -t feedsodt-engines
+30 7 * * * /home/rocky/FeedsODT/shaper/engines.sh stop 2>&1 | logger -t feedsodt-engines
