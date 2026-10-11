@@ -312,7 +312,7 @@ Zmierzone na komplecie 13 feedów, z ciepłym cache'em geometrii:
 | przebieg wszystkich źródeł | **40 s**, szczyt RSS **125 MB** |
 | najcięższe źródło (polregio) | 10 s, szczyt RSS 119 MB |
 | pozostałe źródła | poniżej 2 s, 50–80 MB (z czego ~50 MB to sam Python) |
-| silniki routujące (gotowy graf) | rail 53–70 MB, bus 835–875 MB |
+| silniki routujące (gotowy graf) | rail 53–70 MB, bus 835–875 MB (na serwerze z `-Xmx1500m` RSS rośnie do ~1,7 GB) — potrzebne tylko w nocnym oknie, patrz `shaper/README.md` |
 | import grafu, jednorazowo | do 2,6 GB — patrz `shaper/README.md` |
 | pierwsze liczenie geometrii polregio | ok. 3,5 min, jednorazowo |
 
@@ -531,6 +531,10 @@ bo jest budowany z OpenRailRouting mavenem. Pierwszy `up` na nowej maszynie musi
 go zbudować (kilka minut, klonuje repozytorium i kompiluje). Stąd `--build`
 w poleceniu wyżej i `pull_policy: build` w compose — bez tego `up` bez `--build`
 próbowałby go ściągnąć i kończył na mylącym „pull access denied".
+
+Silniki routujące nie muszą działać całą dobę — wystarczy im nocne okno
+z `shaper/engines.crontab`, co oszczędza ok. 2 GB RAM-u. Patrz
+`shaper/README.md`, „Silniki tylko w nocy".
 
 `--profile shape` jest obowiązkowe, jeśli którekolwiek źródło ma pole `shape` —
 bez niego silniki nie wstaną i pięć feedów będzie zawodzić co cykl (poprzednie
