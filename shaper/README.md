@@ -139,7 +139,7 @@ budżety pamięci:
 
 Na VPS-ie z 4 GB import autobusowego grafu wywróci maszynę — JVM zajmie
 wszystko, co jest, system wejdzie w swap i przestanie odpowiadać. Dlatego
-kontenery mają twarde `mem_limit` (1200 MB i 1800 MB): przekroczenie ubija
+kontenery mają twarde `mem_limit` (1200 MB i 2200 MB): przekroczenie ubija
 proces w kontenerze, zamiast dławić hosta. Pod tymi limitami import **się nie
 uda i tak ma być**.
 
@@ -160,7 +160,16 @@ Plik `.osm.pbf` na serwerze docelowym i tak musi być — entrypoint sprawdza je
 obecność — ale nikt go już nie czyta, dopóki katalog grafu jest niepusty.
 
 Wartości nadpisuje się przez `RAIL_JAVA_OPTS` / `BUS_JAVA_OPTS` i
-`RAIL_MEM_LIMIT` / `BUS_MEM_LIMIT` w `.env`.
+`RAIL_MEM_LIMIT` / `BUS_MEM_LIMIT` w `.env`. Analogicznie `RAIL_CPUS` /
+`BUS_CPUS` (domyślnie 2 rdzenie na silnik).
+
+## Łatki OpenRailRouting
+
+Obraz kolejowy jest budowany z tagu upstream plus łatki z
+`shaper/openrailrouting/patches/` — opis w tamtejszym README. Najważniejsza
+(0001) usuwa nieskończoną pętlę w `/match?fill_gaps=true`: bez niej każdy kurs,
+którego pierwszych dwóch przystanków nie da się dopasować, trwale zajmował
+jeden rdzeń aż do restartu kontenera.
 
 ## Konflikt portów
 
