@@ -60,7 +60,8 @@ services:
   railrouting:
     profiles: ["shape"]
     build: ./shaper/openrailrouting
-    image: feedsodt-railrouting:v1.1
+    # Sufiks -p1: obraz to v1.1 z łatkami z shaper/openrailrouting/patches/.
+    image: feedsodt-railrouting:v1.1-p1
     # Obraz powstaje wyłącznie lokalnie — nie ma go w żadnym rejestrze. Bez tej
     # linii `docker compose up` bez --build próbuje go ściągnąć i kończy na
     # "pull access denied", co wygląda na problem z uprawnieniami, a jest
@@ -93,6 +94,12 @@ services:
     # 2,6 GB i pod tymi limitami się nie uda — i tak ma być. Na maszynie poniżej
     # 8 GB graf się kopiuje, nie importuje; patrz shaper/README.md.
     mem_limit: ${RAIL_MEM_LIMIT:-1200m}
+    # Limit CPU z tego samego powodu. Jetty nie przerywa obliczeń, gdy klient
+    # zerwie połączenie po swoim timeoucie, więc zapętlone żądanie liczy dalej
+    # do restartu kontenera. Tak było z /match + fill_gaps (łatka 0001): siedem
+    # osieroconych wątków trzymało ~5 z 6 rdzeni serwera przez sześć tygodni.
+    # Limit nie naprawia takiego błędu, ale nie pozwala mu zabrać całej maszyny.
+    cpus: ${RAIL_CPUS:-2}
 
   graphhopper-bus:
     profiles: ["shape"]
@@ -109,4 +116,8 @@ services:
       - ./shaper/graphhopper:/gh-config:ro
     environment:
       JAVA_OPTS: ${BUS_JAVA_OPTS:--Xmx1500m -Xms128m}
-    mem_limit: ${BUS_MEM_LIMIT:-1800m}
+    # Limit kontenera musi zostawić JVM zapas ponad -Xmx (metaspace, stosy
+    # wątków, bufory poza stertą). Przy 1800m i -Xmx1500m serwer pokazywał
+    # 1,71 GiB / 1,76 GiB — o krok od ubicia przez OOM killera.
+    mem_limit: ${BUS_MEM_LIMIT:-2200m}
+    cpus: ${BUS_CPUS:-2}

@@ -14,6 +14,13 @@ RUN git clone --branch ${ORR_VERSION} --depth 1 --recurse-submodules --shallow-s
     https://github.com/geofabrik/OpenRailRouting.git /src
 
 WORKDIR /src
+
+# Local fixes on top of the upstream tag — see patches/README.md. `git apply`
+# fails the build when a patch no longer applies (e.g. after bumping
+# ORR_VERSION), so a stale patch cannot be silently skipped.
+COPY patches/ /patches/
+RUN git apply --verbose /patches/*.patch
+
 RUN mvn --batch-mode -DskipTests clean package
 
 # Prefer the shaded jar-with-dependencies if the build produced one.

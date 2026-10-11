@@ -1,0 +1,42 @@
+diff --git a/src/main/java/de/geofabrik/railway_routing/http/MatchResource.java b/src/main/java/de/geofabrik/railway_routing/http/MatchResource.java
+index 2a691ef..ca075df 100644
+--- a/src/main/java/de/geofabrik/railway_routing/http/MatchResource.java
++++ b/src/main/java/de/geofabrik/railway_routing/http/MatchResource.java
+@@ -307,8 +307,13 @@ public class MatchResource {
+             Weighting weighting = null;
+             do {
+                 // Fill gap with normal routing if matching in the last iteration of this loop ended at a gap.
+-                // mapMatching.getSucessfullyMatchedPoints() returns -1 if no point has been matched yet (e.g. gap between first and second point).
+-                if (weighting != null && mapMatching.matchingAttempted() && mapMatching.getProcessedPointsCount() < inputGPXEntries.size()) {
++                // FeedsODT patch: do not require mapMatching.matchingAttempted() here. It is
++                // `processedUpTo > 0`, i.e. false when the gap is between the first and the second
++                // point. The gap was then never routed, the same match was re-run at offset 0 and
++                // the loop never terminated (one CPU core per such request, forever).
++                // On every iteration but the first, offset == processedUpTo here, so routing
++                // offset -> offset + 1 always advances by at least one point.
++                if (weighting != null && mapMatching.getProcessedPointsCount() < inputGPXEntries.size()) {
+                     int start_point = offset;
+                     List<GHPoint> points = new ArrayList<GHPoint>();
+                     points.add((GHPoint) inputGPXEntries.get(start_point).getPoint());
+@@ -335,12 +340,20 @@ public class MatchResource {
+                     mr.setMergedPath(path.path);
+                     matchResultsList.add(mr);
+                     ++offset;
++                    if (offset >= inputGPXEntries.size() - 1) {
++                        // The gap ended at the last point: nothing is left to match.
++                        break;
++                    }
+                 }
+                 MatchResult matchResult = mapMatching.match(inputGPXEntries, fillGaps, offset);
+                 weighting = matchResult.getWeighting();
+                 if (offset < mapMatching.getProcessedPointsCount() - 1) {
+                     matchResultsList.add(matchResult);
+-                    offset += mapMatching.getProcessedPointsCount() - 1;
++                    // FeedsODT patch: getProcessedPointsCount() counts from the start of the
++                    // input, not from offset, so it must be assigned, not added. Adding it
++                    // skipped points after the second gap or ran past the end of the input
++                    // (IndexOutOfBoundsException).
++                    offset = mapMatching.getProcessedPointsCount() - 1;
+                 }
+             } while (fillGaps && mapMatching.hasPointsToBeMatched());
+ 
