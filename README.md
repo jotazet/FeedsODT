@@ -395,14 +395,18 @@ po zgodności czasów i odległości. Pojazd bez jednoznacznego kursu nie trafia
 **TripUpdates** wymagają klucza API PLK (`PKP_PLK_APIKEY`). Bez niego plik nie powstaje,
 a pozycje biorą przewidywane czasy z zapasowego feedu
 [gtfs.kasznia.net](https://gtfs.kasznia.net/) (tak samo, gdy własny TripUpdates ma ponad
-10 minut). Przy błędzie API pętla czeka coraz dłużej (do 32 min), a gdy dobowy limit
-zapytań nie starczy do północy, rozkłada resztę równo. Plik zostaje wtedy poprzedni;
-jego wiek mówi `header.timestamp`.
+10 minut); gdy i on nie odpowiada, pozycje dopasowują się po samym rozkładzie. Przy
+błędzie API pętla czeka coraz dłużej (do 32 min), a gdy dobowy limit zapytań nie starczy
+do północy, rozkłada resztę równo. Plik zostaje wtedy poprzedni; jego wiek mówi
+`header.timestamp`. Kontener jest „unhealthy", gdy plik pozycji ma ponad 10 minut,
+a z kluczem API także gdy TripUpdates ma ponad 40.
 
 Jedno odstępstwo od PolishTrainsGTFS: API PLK zostawia czasem w kursie czas, który się
-cofa (np. odjazd z rozkładu przed opóźnionym przyjazdem). Taki czas podnosimy do
-poprzedniego i oznaczamy jako prognozę (`uncertainty` 1), bo OpenTripPlanner odrzuca
-całą aktualizację kursu z cofającym się czasem. Liczbę poprawek podaje log przebiegu.
+cofa (np. odjazd z rozkładu przed opóźnionym przyjazdem), a OpenTripPlanner odrzuca
+wtedy całą aktualizację kursu. Nie wiadomo, który z dwóch sprzecznych czasów jest zły,
+więc zostaje najdłuższy niemalejący ciąg czasów kursu, a każdy czas spoza niego dostaje
+najbliższy sąsiedni i jest oznaczany jako prognoza (`uncertainty` 1). Liczbę poprawek
+podaje log przebiegu.
 
 Źródła danych i licencje: rozkład i realizacja kursów PKP Polskie Linie Kolejowe S.A.
 (regulamin API wymaga wskazania PLK jako źródła); logika TripUpdates przeniesiona

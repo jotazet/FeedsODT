@@ -42,10 +42,11 @@ services:
     volumes:
       - ./gtfs:/data/gtfs
       - ./config:/app/config:ro
-    # Zdrowy = plik pozycji odświeżony w ciągu 10 minut. Pierwszy przebieg pobiera
+    # Zdrowy = plik pozycji z ostatnich 10 minut, a z kluczem API także TripUpdates
+    # z ostatnich 40 (feedsodt/realtime/loop.py, healthcheck). Pierwszy przebieg pobiera
     # i wczytuje krajowy GTFS (26 MB), stąd start_period.
     healthcheck:
-      test: ["CMD", "python", "-c", "import os,sys,time; p=os.environ['FEEDSODT_OUTPUT_DIR']+'/rt/polish-trains-vehicle-positions.pb'; sys.exit(0 if time.time()-os.path.getmtime(p) < 600 else 1)"]
+      test: ["CMD", "python", "-c", "from feedsodt.realtime.loop import healthcheck; healthcheck()"]
       interval: 1m
       timeout: 10s
       retries: 3

@@ -29,6 +29,9 @@ VP_FILE = "polish-trains-vehicle-positions.pb"
 TU_MAX_AGE_S = 600
 #: Najdłuższy odstęp po kolejnych błędach: 30 s * 2^6 = 32 min.
 MAX_BACKOFF_STEPS = 6
+#: Healthcheck: starszy plik znaczy, że pętla stoi. TU z zapasem na najdłuższy odstęp.
+VP_STALE_S = 600
+TU_STALE_S = 40 * 60
 
 
 class SharedTU:
@@ -96,6 +99,24 @@ def vp_worker(builder: VPBuilder, out_path: Path, interval: int, shared: SharedT
         except Exception as ex:  # plik zostaje poprzedni, następny przebieg za chwilę
             log.error("błąd VP: %r", ex)
         time.sleep(max(1, interval - (time.time() - t0)))
+
+
+def healthcheck() -> None:
+    """Healthcheck kontenera: kod 0, gdy pliki są świeże. TripUpdates sprawdzany tylko
+    z kluczem API; inaczej cofnięty klucz zostawiałby kontener zdrowym, a plik
+    z opóźnieniami starzałby się po cichu."""
+    out = Path(os.environ["FEEDSODT_OUTPUT_DIR"]) / "rt"
+
+    def fresh(name, limit):
+        return time.time() - (out / name).stat().st_mtime < limit
+
+    try:
+        ok = fresh(VP_FILE, VP_STALE_S) and (
+            not os.environ.get("PKP_PLK_APIKEY", "").strip() or fresh(TU_FILE, TU_STALE_S)
+        )
+    except OSError:  # brak pliku
+        ok = False
+    raise SystemExit(0 if ok else 1)
 
 
 def run_realtime(app: AppConfig) -> None:

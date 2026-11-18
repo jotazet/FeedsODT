@@ -36,6 +36,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
+from google.protobuf.message import DecodeError
 from google.transit import gtfs_realtime_pb2 as rt
 
 from ..http import USER_AGENT, build_session, download_to
@@ -284,7 +285,9 @@ def match_by_id(nat, src, agency, v, t, stop_ll):
     if nums is None:
         return None, "trip_id nieznany w statycznym GTFS źródła"
     cands = {c for n in nums for c in nat.by_num.get((agency, n), [])}
-    if not cands:  # np. pociąg prowadzony taborem przewoźnika, ale zapisany pod innym (IC/PR)
+    # Pociąg zapisany w krajowym GTFS pod innym przewoźnikiem: szukamy tylko wśród
+    # przewoźników z config/realtime.toml, bo tylko ich kursy National wczytuje.
+    if not cands:
         cands = {c for (_ag, n), lst in nat.by_num.items() if n in nums for c in lst}
     cands = {c for c in cands if c not in nat.canceled}
     if not cands:
@@ -386,7 +389,12 @@ class VPBuilder:
         now = int(time.time())
         today = self.ensure_static(now)
         if rt_feed is None and self.cfg["national"].get("rt"):
-            rt_feed = load_feed(http_get(self.session, self.cfg["national"]["rt"]))
+            try:
+                rt_feed = load_feed(http_get(self.session, self.cfg["national"]["rt"]))
+            except (requests.RequestException, DecodeError) as ex:
+                # Bez przewidywanych czasów dopasowanie idzie po samym rozkładzie: pozycje
+                # zostają prawdziwe, tylko kurs mocno opóźniony może odpaść.
+                log.warning("zapasowy TripUpdates niedostępny (%r): czasy z rozkładu", ex)
         self.nat.set_rt(rt_feed if rt_feed is not None else rt.FeedMessage())
         out = rt.FeedMessage()
         out.header.gtfs_realtime_version = "2.0"
@@ -412,6 +420,7 @@ class VPBuilder:
                         vps[e.vehicle.vehicle.id or e.id] = e.vehicle
             static = self.src.get(name, (None,))[0]
             smem = mem.setdefault(name, {})
+            running = set(self.nat.by_agency.get(ag, []))
             for vid, v in vps.items():
                 t = v.timestamp or now
                 if not v.trip.trip_id:
@@ -420,9 +429,7 @@ class VPBuilder:
                 stop_ll = static.stops.get(v.stop_id) if (static and v.stop_id) else None
                 if static:
                     res, err = match_by_id(self.nat, static, ag, v, t, stop_ll)
-                elif v.trip.trip_id in smem and tuple(smem[v.trip.trip_id]) in set(
-                    self.nat.by_agency.get(ag, [])
-                ):
+                elif v.trip.trip_id in smem and tuple(smem[v.trip.trip_id]) in running:
                     c = tuple(smem[v.trip.trip_id])
                     tl = self.nat.timeline(*c)
                     if tl and tl[0][1] - WINDOW_SLACK_S <= t <= tl[-1][0] + WINDOW_SLACK_S:

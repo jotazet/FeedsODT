@@ -176,36 +176,47 @@ def test_build_updates_detour_uses_fallback_stops(national_zip):
     assert stats["objazd"] == 1
 
 
-def test_build_updates_never_lets_time_go_back(national_zip):
-    static = _plk_static(national_zip)
+def _times_after_fix(national_zip, stops):
+    """Czasy (HH:MM) kursu PLK_KS_100_1 po build_updates, kolejno przyjazd/odjazd."""
     stats = defaultdict(int)
-    trains = [
-        {
-            "od": "2026-11-18",
-            "sid": 100,
-            "oid": 1,
-            "st": [
-                {"psn": 1, "asn": 1, "id": 1000, "ad": "2026-11-18T08:00:00", "cf": True},
-                # Przyjazd opóźniony, odjazd został z rozkładu (przed przyjazdem).
-                {
-                    "psn": 2,
-                    "asn": 2,
-                    "id": 2000,
-                    "aa": "2026-11-18T08:40:00",
-                    "ad": "2026-11-18T08:31:00",
-                    "cf": True,
-                },
-                {"psn": 3, "asn": 3, "id": 3000, "aa": "2026-11-18T08:35:00"},
-            ],
-        }
-    ]
-    [update] = build_updates(static, trains, stats)
+    train = {"od": "2026-11-18", "sid": 100, "oid": 1, "st": []}
+    for psn, (sid, aa, ad) in enumerate(stops, start=1):
+        s = {"psn": psn, "asn": psn, "id": sid, "cf": True}
+        if aa:
+            s["aa"] = f"2026-11-18T{aa}:00"
+        if ad:
+            s["ad"] = f"2026-11-18T{ad}:00"
+        train["st"].append(s)
+    [update] = build_updates(_plk_static(national_zip), [train], stats)
     stu = to_feed([update], 1).entity[0].trip_update.stop_time_update
-    at = int(dt.datetime(2026, 11, 18, 8, 40, tzinfo=TZ).timestamp())
-    assert stu[1].arrival.time == stu[1].departure.time == stu[2].arrival.time == at
-    assert stu[1].departure.uncertainty == 1  # już nie potwierdzony
+    hhmm = [
+        dt.datetime.fromtimestamp(getattr(u, ev).time, TZ).strftime("%H:%M")
+        for u in stu
+        for ev in ("arrival", "departure")
+        if u.HasField(ev)
+    ]
+    return hhmm, stu, stats["czasy cofnięte -> poprawione"]
+
+
+def test_time_going_back_fixes_only_the_outlier(national_zip):
+    # Zawyżony przyjazd na B: poprawiony on, a nie odjazd z B i przyjazd na C.
+    hhmm, stu, fixed = _times_after_fix(
+        national_zip, [(1000, None, "08:00"), (2000, "09:40", "08:31"), (3000, "09:00", None)]
+    )
+    assert hhmm == ["08:00", "08:31", "08:31", "09:00"]
+    assert fixed == 1
+    assert stu[1].arrival.uncertainty == 1  # już nie potwierdzony
     assert stu[0].departure.uncertainty == 0  # czasów w porządku nie rusza
-    assert stats["czasy cofnięte -> poprawione"] == 2
+
+
+def test_time_going_back_raises_a_stale_low_time(national_zip):
+    # Opóźniony kurs, a odjazd z B został z rozkładu, przed przyjazdem.
+    hhmm, _, fixed = _times_after_fix(
+        national_zip,
+        [(1000, "08:28", "08:30"), (2000, "09:00", "08:01"), (3000, "09:30", None)],
+    )
+    assert hhmm == ["08:28", "08:30", "09:00", "09:00", "09:30"]
+    assert fixed == 1
 
 
 def test_build_updates_matches_by_train_number(national_zip):
@@ -303,6 +314,56 @@ def test_failure_wait_backs_off_and_waits_for_key_activation():
     assert loop.failure_wait(RuntimeError("HTTP 500"), 0) == (1, 60)
     assert loop.failure_wait(RuntimeError("HTTP 500"), 6) == (6, 30 * 64)
     assert loop.failure_wait(RuntimeError("HTTP 403 PendingActivation"), 3) == (0, 300)
+
+
+def test_vehicle_positions_survive_a_fallback_tu_outage(national_zip, tmp_path, monkeypatch):
+    """Bez własnego TU i bez kasznii plik pozycji dalej powstaje (czasy z rozkładu)."""
+    import requests
+
+    from feedsodt.realtime import vehicles
+
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    (cache / "national.zip").write_bytes(national_zip.read_bytes())
+
+    def down(_session, _url):
+        raise requests.ConnectionError("kasznia leży")
+
+    monkeypatch.setattr(vehicles, "http_get", down)
+    cfg = {
+        "static_max_age_hours": 12,
+        "national": {"static": "https://example.invalid/n.zip", "rt": "https://example.invalid/rt"},
+        "sources": [],
+    }
+    out = tmp_path / "vp.pb"
+    vehicles.VPBuilder(cfg, cache).run_once(out)
+    assert out.exists()
+
+
+def test_healthcheck_watches_trip_updates_only_with_a_key(tmp_path, monkeypatch):
+    import os
+    import time
+
+    (tmp_path / "rt").mkdir()
+    vp, tu = tmp_path / "rt" / loop.VP_FILE, tmp_path / "rt" / loop.TU_FILE
+    vp.write_bytes(b"")
+    tu.write_bytes(b"")
+    old = time.time() - loop.TU_STALE_S - 1
+    os.utime(tu, (old, old))
+    monkeypatch.setenv("FEEDSODT_OUTPUT_DIR", str(tmp_path))
+
+    def code():
+        with pytest.raises(SystemExit) as ex:
+            loop.healthcheck()
+        return ex.value.code
+
+    monkeypatch.delenv("PKP_PLK_APIKEY", raising=False)
+    assert code() == 0
+    monkeypatch.setenv("PKP_PLK_APIKEY", "x")
+    assert code() == 1  # TripUpdates stoi
+    vp.unlink()
+    monkeypatch.delenv("PKP_PLK_APIKEY")
+    assert code() == 1  # brak pozycji
 
 
 def test_shared_tu_expires():

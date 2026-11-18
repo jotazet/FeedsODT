@@ -268,24 +268,55 @@ class PlkApi:
 
 # ───────────────────────── TripUpdates ─────────────────────────
 def monotonic(stop_times):
-    """Czas cofający się względem poprzedniego zdarzenia (przyjazd po odjeździe, stacja
-    przed poprzednią) podnosi do poprzedniego i oznacza jako prognozę. API PLK zostawia
-    tak czasem stary czas z rozkładu obok opóźnionego; walidator GTFS-RT uznaje to za
-    błąd (E022, E025), a OpenTripPlanner odrzuca wtedy całą aktualizację kursu.
-    Zwraca liczbę poprawionych czasów."""
-    last, fixed = 0, 0
-    for s in stop_times:
-        if s.get("cancelled"):
+    """Usuwa cofanie się czasu w kursie (przyjazd po odjeździe, stacja przed poprzednią).
+
+    API PLK zostawia czasem stary czas z rozkładu obok opóźnionego; walidator GTFS-RT
+    uznaje to za błąd (E022, E025), a OpenTripPlanner odrzuca wtedy całą aktualizację
+    kursu. Nie wiadomo, który z dwóch sprzecznych czasów jest zły, więc zostaje
+    najdłuższy niemalejący ciąg czasów kursu, a każdy czas spoza niego dostaje najbliższy
+    sąsiedni z tego ciągu i jest oznaczany jako prognoza. Jeden zawyżony czas nie ciągnie
+    wtedy w górę reszty kursu. Zwraca liczbę poprawionych czasów."""
+    events = [
+        (s, ev)
+        for s in stop_times
+        if not s.get("cancelled")
+        for ev in ("arrival", "departure")
+        if s.get(ev)
+    ]
+    times = [s[ev] for s, ev in events]
+    if all(a <= b for a, b in zip(times, times[1:])):
+        return 0
+    keep = _longest_non_decreasing(times)
+    following, upcoming = [None] * len(times), None
+    for i in reversed(range(len(times))):
+        if i in keep:
+            upcoming = times[i]
+        following[i] = upcoming
+    fixed, previous = 0, None
+    for i, (s, ev) in enumerate(events):
+        if i in keep:
+            previous = times[i]
             continue
-        for ev in ("arrival", "departure"):
-            t = s.get(ev)
-            if not t:
-                continue
-            if t < last:
-                s[ev], s["confirmed"] = last, False
-                fixed += 1
-            last = s[ev]
+        # Spoza ciągu: albo niższy od poprzedniego zachowanego, albo wyższy od następnego.
+        s[ev] = previous if previous is not None and times[i] < previous else following[i]
+        s["confirmed"] = False
+        fixed += 1
     return fixed
+
+
+def _longest_non_decreasing(xs):
+    """Indeksy najdłuższego niemalejącego podciągu. O(n²), ale woła się tylko dla kursów
+    z cofającym się czasem (ok. 100 na kilkanaście tysięcy)."""
+    length, prev = [1] * len(xs), [-1] * len(xs)
+    for i in range(len(xs)):
+        for j in range(i):
+            if xs[j] <= xs[i] and length[j] + 1 > length[i]:
+                length[i], prev[i] = length[j] + 1, j
+    i, out = max(range(len(xs)), key=length.__getitem__), set()
+    while i >= 0:
+        out.add(i)
+        i = prev[i]
+    return out
 
 
 def build_updates(static, trains, stats):
