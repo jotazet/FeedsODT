@@ -1,0 +1,36 @@
+# Comiesięczne pull requesty dla tego, co repozytorium przypina, a czego samo nie buduje:
+# akcje (przypięte commitem), zależności Pythona i obrazy bazowe Dockerfile'ów. Każda wersja
+# czeka tydzień od wydania. Poprawki bezpieczeństwa nie czekają na harmonogram. Obrazy
+# z docker-compose.yml (GraphHopper, nginx) i wersja OpenRailRouting (ORR_VERSION) zmieniają
+# się ręcznie: nowy silnik to nowy graf i inne kształty (shaper/README.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    groups:
+      # Wszystko poza wersją główną: jeden pull request, jeden przebieg CI w miesiącu.
+      python-minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directories: ["/", "/shaper/openrailrouting"]
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    ignore:
+      # Nowa wersja minor Pythona to też requires-python i CI; przesuwamy ręcznie.
+      - dependency-name: python
+        update-types: ["version-update:semver-minor"]

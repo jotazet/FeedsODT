@@ -1,0 +1,31 @@
+# Nakładka produkcyjna: obrazy wydania z ghcr.io zamiast budowania na serwerze
+# i konfiguracja źródeł z obrazu, czyli z taga. Na serwerze włącza ją
+# COMPOSE_FILE w pliku hosta (docs/wdrozenie.md), więc zwykłe `docker compose`
+# w katalogu wdrożenia i shaper/engines.sh biorą ją same.
+#
+# FEEDSODT_VERSION dopisuje scripts/deploy/release.sh. Bez niej Compose
+# odmawia, zamiast po cichu wziąć jakiś inny obraz.
+
+# Stała nazwa projektu: kontenery, sieć i obrazy nie zależą od nazwy katalogu,
+# a wydanie przejmuje kontenery uruchomione kiedyś z checkoutu (też „feedsodt").
+name: feedsodt
+
+services:
+  fetcher:
+    image: ghcr.io/jotazet/feedsodt:${FEEDSODT_VERSION:?ustaw FEEDSODT_VERSION (robi to release.sh)}
+    build: !reset null
+    # Bez ./config: sources.toml i tabele barw są w obrazie, więc wydanie
+    # ustala też, które źródła i w jakich slotach idą. Zmiana źródeł = nowe wydanie.
+    volumes: !override
+      - ./gtfs:/data/gtfs
+    # Test i odstępy z HEALTHCHECK obrazu. Bez start_interval pierwsza próba
+    # przychodzi po 5 min (interval), a tyle czekałoby `up --wait` w release.sh.
+    healthcheck:
+      start_period: 10m
+      start_interval: 10s
+
+  railrouting:
+    image: ghcr.io/jotazet/feedsodt-railrouting:${FEEDSODT_VERSION:?ustaw FEEDSODT_VERSION (robi to release.sh)}
+    build: !reset null
+    # Obraz jest w rejestrze, więc nie budujemy go na serwerze.
+    pull_policy: missing

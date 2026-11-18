@@ -3,16 +3,21 @@ services:
     build: .
     container_name: feedsodt-fetcher
     restart: unless-stopped
+    # Wartości z .env (na produkcji: ze środowiska `production` na GitHubie,
+    # docs/wdrozenie.md). Domyślne poniżej są zarazem produkcyjne.
     environment:
       TZ: Europe/Warsaw
       # Slot każdego źródła (run_at, codziennie) stoi w config/sources.toml.
       # Poniższe to tylko wartości domyślne dla źródeł, które go nie podały.
-      FEEDSODT_INTERVAL_DAYS: "1"
-      FEEDSODT_RUN_AT: "00:30"
-      # Odstępy ponawiania dla źródeł, które zawiodły. Puste = bez ponawiania.
-      FEEDSODT_RETRY_MINUTES: "15,30,60"
+      FEEDSODT_INTERVAL_DAYS: ${FEEDSODT_INTERVAL_DAYS:-1}
+      FEEDSODT_RUN_AT: ${FEEDSODT_RUN_AT:-00:30}
+      # Odstępy ponawiania dla źródeł, które zawiodły. Puste = bez ponawiania,
+      # dlatego `-`, a nie `:-`: pusta wartość z .env zostaje pusta.
+      FEEDSODT_RETRY_MINUTES: ${FEEDSODT_RETRY_MINUTES-15,30,60}
       # Pierwszy przebieg od razu po starcie, żeby `up -d` dawało pliki bez czekania.
-      FEEDSODT_RUN_ON_START: "true"
+      FEEDSODT_RUN_ON_START: ${FEEDSODT_RUN_ON_START:-true}
+      FEEDSODT_SHAPE_WORKERS: ${FEEDSODT_SHAPE_WORKERS:-8}
+      FEEDSODT_SHAPE_GPS_ACCURACY: ${FEEDSODT_SHAPE_GPS_ACCURACY:-50}
     volumes:
       - ./gtfs:/data/gtfs
       # Montujemy KATALOG, nie pojedynczy plik. Bind pojedynczego pliku trzyma
