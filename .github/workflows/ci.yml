@@ -117,11 +117,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      # Każda zmienna środowiska. Serwer odmawia zmiennej spoza RELEASE_VARIABLES
-      # w scripts/deploy/envfile.py. Nowy sekret: dopisz go tu (env) i w SECRETS tamże.
-      - name: Zapis .env ze zmiennych środowiska
+      # Każda zmienna środowiska i sekrety z nazwy. Serwer odmawia zmiennej spoza
+      # RELEASE_VARIABLES w scripts/deploy/envfile.py. Nowy sekret: dopisz go tu (env)
+      # i w SECRETS tamże.
+      - name: Zapis .env ze zmiennych i sekretów środowiska
         env:
           VARS_JSON: ${{ toJSON(vars) }}
+          PKP_PLK_APIKEY: ${{ secrets.PKP_PLK_APIKEY }}
         run: python3 -I scripts/deploy/envfile.py write "$RUNNER_TEMP/production.env"
       # feedsodt-deploy bierze tag jako jedyny argument, a .env ze standardowego wejścia.
       - name: Wdrożenie

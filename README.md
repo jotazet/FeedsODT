@@ -18,7 +18,12 @@ http://localhost:8090/gtfs/mld-gtfs.zip
 http://localhost:8090/gtfs/ska-gtfs.zip
 http://localhost:8090/gtfs/zkkm-gtfs.zip
 http://localhost:8090/gtfs/index.json
+http://localhost:8090/gtfs/rt/polish-trains-trip-updates.pb
+http://localhost:8090/gtfs/rt/polish-trains-vehicle-positions.pb
 ```
+
+Dwa ostatnie to GTFS-RT kolei, odświeżany co kilkadziesiąt sekund
+([niżej](#realtime-kolei)).
 
 Port zmienisz przez `FEEDSODT_PORT` w pliku `.env` (domyślnie 8090, bo 8080 bywa zajęte).
 
@@ -369,6 +374,41 @@ plików i nie decyduje, co jest najnowsze**; odpowiada tylko na pytanie „co tu
 jest do wzięcia". Resztą — HTTP, walidacją, scalaniem, publikacją — zajmuje się
 wspólny rdzeń.
 
+## Realtime kolei
+
+Usługa `realtime` (`python -m feedsodt realtime`, osobny kontener) co zadaną liczbę
+sekund zapisuje w `gtfs/rt/` dwa pliki GTFS-RT dla krajowego GTFS kolejowego
+[mkuran.pl](https://mkuran.pl/gtfs/) (`polish_trains.zip`). Oba używają jego `trip_id`
+i `start_date`, więc konsument łączy je z tym plikiem, nie z feedami przewoźników.
+
+| plik | co zawiera | skąd | odstęp |
+|---|---|---|---|
+| `polish-trains-trip-updates.pb` | opóźnienia, odwołania, objazdy wszystkich pociągów z API | [Otwarte Dane Kolejowe PKP PLK](https://pdp-api.plk-sa.pl/) | `FEEDSODT_RT_TU_INTERVAL`, 60 s |
+| `polish-trains-vehicle-positions.pb` | pozycje pociągów KD, ŁKA i KMŁ | feedy GTFS-RT przewoźników w katalogu ODT | `FEEDSODT_RT_VP_INTERVAL`, 30 s |
+
+**Pozycje są prawdziwe**, z feedów przewoźników; nic nie jest interpolowane z rozkładu.
+Szacowana jest tylko pozycja oczekiwana kursu, którą rozstrzygamy, do którego kursu
+krajowego należy pojazd: po numerze pociągu z GTFS przewoźnika, a gdy go nie ma (KMŁ),
+po zgodności czasów i odległości. Pojazd bez jednoznacznego kursu nie trafia do pliku.
+Źródła i sposób dopasowania stoją w `config/realtime.toml`.
+
+**TripUpdates** wymagają klucza API PLK (`PKP_PLK_APIKEY`). Bez niego plik nie powstaje,
+a pozycje biorą przewidywane czasy z zapasowego feedu
+[gtfs.kasznia.net](https://gtfs.kasznia.net/) (tak samo, gdy własny TripUpdates ma ponad
+10 minut). Przy błędzie API pętla czeka coraz dłużej (do 32 min), a gdy dobowy limit
+zapytań nie starczy do północy, rozkłada resztę równo. Plik zostaje wtedy poprzedni;
+jego wiek mówi `header.timestamp`.
+
+Źródła danych i licencje: rozkład i realizacja kursów PKP Polskie Linie Kolejowe S.A.
+(regulamin API wymaga wskazania PLK jako źródła); logika TripUpdates przeniesiona
+z [PolishTrainsGTFS](https://github.com/MKuranowski/PolishTrainsGTFS) Mikołaja
+Kuranowskiego (MIT, `feedsodt/realtime/LICENSE.PolishTrainsGTFS`); zapasowe TripUpdates
+gtfs.kasznia.net (CC BY 4.0); pozycje z feedów przewoźników publikowanych w ODT.
+
+```bash
+docker compose logs -f realtime          # statystyki dopasowania co przebieg
+```
+
 ## Konfiguracja
 
 | zmienna | domyślnie | znaczenie |
@@ -387,11 +427,15 @@ wspólny rdzeń.
 | `FEEDSODT_SHAPE_GPS_ACCURACY` | `50` | tolerancja map matchingu w metrach |
 | `FEEDSODT_OSM_FILE` | `./osm/poland-latest.osm.pbf` | wycinek OSM dla silników (`.env`, tylko compose) |
 | `TZ` | `Europe/Warsaw` | strefa czasowa harmonogramu |
+| `FEEDSODT_RT_TU_INTERVAL` | `60` | co ile sekund nowy TripUpdates kolei |
+| `FEEDSODT_RT_VP_INTERVAL` | `30` | co ile sekund nowy VehiclePositions kolei |
+| `PKP_PLK_APIKEY` | pusty | klucz API PKP PLK; bez niego nie ma TripUpdates |
 
 Lokalnie wszystko ustawia `.env` (wzorzec: `.env.example`). Na produkcji
 `FEEDSODT_INTERVAL_DAYS`, `FEEDSODT_RUN_AT`, `FEEDSODT_RETRY_MINUTES`,
-`FEEDSODT_RUN_ON_START`, `FEEDSODT_SHAPE_WORKERS` i `FEEDSODT_SHAPE_GPS_ACCURACY` są
-zmiennymi środowiska `production` na GitHubie, a porty, ścieżki i limity stoją w pliku
+`FEEDSODT_RUN_ON_START`, `FEEDSODT_SHAPE_WORKERS`, `FEEDSODT_SHAPE_GPS_ACCURACY`
+i `FEEDSODT_RT_*_INTERVAL` są zmiennymi środowiska `production` na GitHubie,
+`PKP_PLK_APIKEY` jego sekretem, a porty, ścieżki i limity stoją w pliku
 hosta ([docs/wdrozenie.md](docs/wdrozenie.md)).
 
 ## Gwarancje
@@ -566,6 +610,7 @@ Testy **nie ruszają sieci** — budują sztuczne paczki GTFS w katalogu tymczas
 | `test_area.py` | test położenia w granicy, dziury w wielokątach, pary stacji po dwóch stronach rzeki granicznej |
 | `test_transform_odt.py` | barwy z tabeli i domyślne, dopasowanie po oznaczeniu linii, ODT jako wystawca, nienaruszalność pozostałych tabel, poprawność wersjonowanych tabel barw |
 | `test_transform_ska.py` | przeniesienie peronu ze `stop_headsign` do `stops.txt`, hierarchia stacja–peron, naprawa współrzędnych 0,0, kierunkowskaz i kierunek jazdy |
+| `test_realtime.py` | TripUpdates z API PLK: dopasowanie po identyfikatorach i po numerze, przesunięcie dnia, odwołania, objazdy; pozycje: wybór kursu w oknie czasowym, odwołane kursy, dopasowanie zapasowe tylko jednoznaczne; odstępy pętli przy błędach i dobowym limicie |
 | `test_deploy.py` | `.env` wydania: zapis ze zmiennych GitHuba, odrzucanie ustawień hosta, pierwszeństwo pliku hosta; zmienne wydania docierają do fetchera; pliki pobierane przez serwer istnieją |
 | `test_protect_main_hook.py` | hook Claude Code, który nie pozwala commitować ani pushować na `main` i pyta przed pushem taga `v*` |
 

@@ -28,7 +28,7 @@ flowchart LR
    jego `release.sh`. Na serwerze nie ma checkoutu.
 3. **`release.sh`** odmawia, gdy trwa przebieg fetchera (blokada `gtfs/.work/.lock`),
    dopisuje do `.env` `FEEDSODT_VERSION=vX.Y.Z`, ściąga obrazy taga (także silników, żeby
-   były na miejscu przed nocą), instaluje nowy `.env`, odtwarza `fetcher` i `web`
+   były na miejscu przed nocą), instaluje nowy `.env`, odtwarza `fetcher`, `realtime` i `web`
    (`up -d --wait`) i czeka do 10 minut, aż będą zdrowe. Potem usuwa z hosta obrazy
    wszystkich poza 3 najnowszymi wydaniami (rejestr trzyma każde). Każdy błąd zatrzymuje
    go i zadanie robi się czerwone.
@@ -74,10 +74,12 @@ pierwszym wydaniem: zadanie `deploy` utworzyłoby je samo, ale bez reguły poni�
   Wtedy żadna gałąź, pull request ani inny workflow nie dostaje jego zmiennych.
 - **Environment variables** (wszystkie opcjonalne; domyślne z `docker-compose.yml` są
   produkcyjne): `FEEDSODT_INTERVAL_DAYS`, `FEEDSODT_RUN_AT`, `FEEDSODT_RETRY_MINUTES`,
-  `FEEDSODT_RUN_ON_START`, `FEEDSODT_SHAPE_WORKERS`, `FEEDSODT_SHAPE_GPS_ACCURACY`
-  (znaczenie: `README.md`, „Konfiguracja"). Do tego `DEPLOY_APP_USER`, użytkownik, jako
+  `FEEDSODT_RUN_ON_START`, `FEEDSODT_SHAPE_WORKERS`, `FEEDSODT_SHAPE_GPS_ACCURACY`,
+  `FEEDSODT_RT_TU_INTERVAL`, `FEEDSODT_RT_VP_INTERVAL` (znaczenie: `README.md`,
+  „Konfiguracja"). Do tego `DEPLOY_APP_USER`, użytkownik, jako
   który działa `feedsodt-deploy` (domyślnie `feedsodt`); do `.env` nie trafia.
-- **Environment secrets:** dziś żadnych.
+- **Environment secrets:** `PKP_PLK_APIKEY`, klucz API PKP PLK dla TripUpdates kolei
+  (opcjonalny: bez niego nie ma tylko tego pliku).
 
 Lista dozwolonych zmiennych to `RELEASE_VARIABLES` w `scripts/deploy/envfile.py`. Serwer
 odmawia wydania, zanim cokolwiek zmieni, jeśli przyjdzie inna zmienna
@@ -111,7 +113,7 @@ maszyny: `docker pull ghcr.io/jotazet/feedsodt:main`.
 z `.env` zadania. Wymagane jest `COMPOSE_FILE`; poza tym porty, ścieżki i limity
 (`FEEDSODT_PORT`, `FEEDSODT_OSM_FILE`, `FEEDSODT_RAIL_PORT`, `FEEDSODT_BUS_PORT`,
 `RAIL_JAVA_OPTS`, `BUS_JAVA_OPTS`, `RAIL_MEM_LIMIT`, `BUS_MEM_LIMIT`, `RAIL_CPUS`,
-`BUS_CPUS`; znaczenie w `.env.example`). Nie trzyma sekretów. `feedsodt-deploy` nie ruszy,
+`BUS_CPUS`, `REALTIME_MEM_LIMIT`; znaczenie w `.env.example`). Nie trzyma sekretów. `feedsodt-deploy` nie ruszy,
 jeśli plik albo `/etc/odt` nie należą do roota albo może je zapisać ktoś inny. Format jak
 `.env`, `$$` dla dosłownego `$`.
 

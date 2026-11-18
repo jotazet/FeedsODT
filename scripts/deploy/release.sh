@@ -1,6 +1,6 @@
 #!/bin/sh
 # Wdraża wydanie z katalogu wdrożenia: obrazy taga (to jeszcze niczego nie zmienia), nowy
-# .env, nowe kontenery fetchera i nginx-a, aż oba działają. Każdy błąd zatrzymuje go w tym
+# .env, nowe kontenery fetchera, realtime i nginx-a, aż wszystkie działają. Każdy błąd zatrzymuje go w tym
 # miejscu. feedsodt-deploy uruchamia go po skopiowaniu plików wydania do katalogu wdrożenia
 # (docs/wdrozenie.md); działa też ręcznie stamtąd, z kompletnym .env (feedsodt-deploy
 # dokłada do .env zadania ustawienia pliku hosta):

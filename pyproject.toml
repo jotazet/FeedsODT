@@ -7,6 +7,8 @@ dependencies = [
     "requests>=2.32,<3",
     "beautifulsoup4>=4.12,<5",
     "APScheduler>=3.10,<4",
+    # GTFS-RT kolei (feedsodt/realtime): odczyt i zapis plików .pb.
+    "gtfs-realtime-bindings>=3,<4",
 ]
 
 [project.optional-dependencies]
@@ -18,7 +20,7 @@ include = ["feedsodt*"]
 # Wersjonowana kopia listy peronów PLK — bez niej przebudowa SKA nie ma
 # ścieżki zapasowej, gdy GitHub Pages nie odpowiada.
 [tool.setuptools.package-data]
-feedsodt = ["data/*.json"]
+feedsodt = ["data/*.json", "realtime/LICENSE.PolishTrainsGTFS"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
