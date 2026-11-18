@@ -82,7 +82,7 @@ class TestGranicaPolski:
             ("Guben", 51.9530, 14.7150, False),
             ("Słubice", 52.3480, 14.5730, True),
             ("Frankfurt/Oder", 52.3390, 14.5460, False),
-            # Stacje, które POLREGIO obsługuje w głębi Niemiec.
+            # Stacje kolejowe w głębi Niemiec.
             ("Berlin Ostkreuz", 52.5030, 13.4690, False),
             ("Cottbus", 51.7540, 14.3210, False),
             ("Angermünde", 53.0290, 13.9950, False),

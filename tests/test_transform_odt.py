@@ -179,7 +179,7 @@ class TestTabelaBarw:
     def test_komentarze_i_puste_wiersze_sa_pomijane(self, tmp_path):
         path = tmp_path / "barwy.txt"
         path.write_text(
-            "# barwy SKA, te same co w POLREGIO\n\nroute_short_name,route_color\nSKA1,29ace0\n",
+            "# barwy SKA organizatora\n\nroute_short_name,route_color\nSKA1,29ace0\n",
             encoding="utf-8",
         )
 

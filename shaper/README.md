@@ -85,7 +85,7 @@ docker compose --profile shape logs -f railrouting graphhopper-bus
 ## Silniki tylko w nocy
 
 Silniki są potrzebne wyłącznie w slotach źródeł z polem `shape` — przebieg
-kształtowania trwa ok. minuty co kilka dni. Przez resztę czasu trzymały
+kształtowania trwa ok. minuty co noc. Przez resztę czasu trzymały
 ok. 2 GB RAM-u (bus ~1,7 GB, kolej 0,2–0,5 GB). Grafy z `cache/` ładują się
 w kilka sekund, więc silniki mogą wstawać tylko na noc:
 

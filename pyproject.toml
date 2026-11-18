@@ -15,7 +15,7 @@ dev = ["pytest>=8.0"]
 [tool.setuptools.packages.find]
 include = ["feedsodt*"]
 
-# Wersjonowana kopia listy peronów PLK — bez niej przebudowa POLREGIO nie ma
+# Wersjonowana kopia listy peronów PLK — bez niej przebudowa SKA nie ma
 # ścieżki zapasowej, gdy GitHub Pages nie odpowiada.
 [tool.setuptools.package-data]
 feedsodt = ["data/*.json"]
@@ -23,7 +23,7 @@ feedsodt = ["data/*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Testy nie ruszają sieci ani silników routujących: budują sztuczne paczki GTFS
-# w tmp_path, a router podmieniają atrapą. Pełny przebieg po dziewięciu źródłach
+# w tmp_path, a router podmieniają atrapą. Pełny przebieg po wszystkich źródłach
 # to `python -m feedsodt run-once`.
 addopts = "-q"
 

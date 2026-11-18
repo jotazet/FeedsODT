@@ -1,5 +1,5 @@
-# Barwy linii Szybkiej Kolei Aglomeracyjnej, te same co w feedzie POLREGIO —
-# pasażer widzi SKA2 w jednym kolorze niezależnie od tego, czyj rozkład ogląda.
+# Barwy linii Szybkiej Kolei Aglomeracyjnej — barwy organizatora, te, których
+# pasażer szuka na mapie.
 #
 # UWAGA: feed KML SKA (kml-ska-gtfs.zip) nie zawiera dziś linii SKA1/SKA2/SKA3.
 # Jego routes.txt to nazwy handlowe pociągów (KML, JASKÓŁKA, DUNAJEC...),

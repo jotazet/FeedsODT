@@ -48,6 +48,12 @@ log = logging.getLogger(__name__)
 #: źródło nagle wystawi setki plików bez dat w nazwach.
 MAX_DOWNLOADS = 15
 
+#: Ile czeka uruchomienie, które trafiło na trwający przebieg, i ile razy
+#: najwyżej próbuje: 2 min x 30 = godzina, z zapasem na przebieg startowy
+#: liczący geometrię od zera.
+LOCK_WAIT_MINUTES = 2
+LOCK_MAX_WAITS = 30
+
 
 @dataclass
 class SourceResult:
@@ -338,9 +344,9 @@ def select_sources(
     """Źródła do przebiegu: wskazane po nazwie (ponowienie), przypadające na
     dany slot (przebieg z harmonogramu) albo wszystkie (`run-once` z ręki).
 
-    Slot to para (dzień cyklu, godzina). Przy FEEDSODT_INTERVAL_DAYS=3 każde
-    źródło ma własny slot w trzydniowym obrocie, więc na maszynie nigdy nie
-    liczą się dwa naraz.
+    Slot to para (dzień cyklu, godzina). Każde źródło ma własny slot (przy
+    codziennym cyklu: własną godzinę, co 10 min od 00:00), więc na maszynie
+    nigdy nie liczą się dwa naraz.
 
     Slot wyznaczamy z aktualnie wczytanej konfiguracji, a nie z listy
     zapamiętanej przy starcie — dzięki temu dopisanie miasta do sources.toml
@@ -418,8 +424,12 @@ def _scheduled_run(
     at: str | None = None,
     only: set[str] | None = None,
     attempt: int = 0,
+    waits: int = 0,
 ) -> None:
     """Jeden przebieg plus zaplanowanie ponowienia, jeśli coś zawiodło.
+
+    Gdy inny przebieg trzyma blokadę, uruchomienie jest odkładane co
+    LOCK_WAIT_MINUTES (najwyżej LOCK_MAX_WAITS razy), zamiast przepadać.
 
     Konfigurację wczytujemy od nowa, żeby dodanie miasta w sources.toml nie
     wymagało restartu kontenera. Literówka w TOML-u nie może zablokować
@@ -434,9 +444,31 @@ def _scheduled_run(
     try:
         results = run_all(app, only, at)
     except AlreadyRunning:
-        # Ktoś odpalił run-once ręcznie i właśnie pobiera to samo — nie ma sensu
-        # ani dublować pracy, ani ponawiać.
-        log.warning("inny przebieg jest w toku — pomijam to uruchomienie")
+        # Sloty stoją co 10 min, więc ponowienie, przebieg startowy albo ręczny
+        # run-once potrafią jeszcze trwać, gdy wypada kolejny slot. Pominięcie
+        # znaczyłoby, że to źródło czeka na wersję cały dzień — odkładamy je
+        # o chwilę, aż blokada zostanie zwolniona.
+        if waits >= LOCK_MAX_WAITS:
+            log.error(
+                "inny przebieg trwa od %d min — pomijam to uruchomienie (%s)",
+                waits * LOCK_WAIT_MINUTES,
+                at or ", ".join(sorted(only or [])) or "wszystkie źródła",
+            )
+            return
+        when = _now() + timedelta(minutes=LOCK_WAIT_MINUTES)
+        scheduler.add_job(
+            _scheduled_run,
+            DateTrigger(run_date=when),
+            args=[fallback, scheduler, at, only, attempt, waits + 1],
+            id=f"wait-{at or 'manual'}-{attempt}",
+            replace_existing=True,
+            misfire_grace_time=600,
+        )
+        log.warning(
+            "inny przebieg jest w toku — to uruchomienie (%s) czeka do %s",
+            at or ", ".join(sorted(only or [])) or "wszystkie źródła",
+            when.strftime("%H:%M"),
+        )
         return
 
     failed = {result.name for result in results if not result.ok}
@@ -478,9 +510,10 @@ def run_daemon(app: AppConfig) -> None:
 
     Zadanie cron zakładamy raz na każdą **godzinę** występującą w konfiguracji,
     a o tym, które źródła się w niej mieszczą, decyduje dopiero dzień cyklu
-    w chwili odpalenia. Dzięki temu trzydniowy obrót nie potrzebuje wyrażeń
-    typu ``day=*/3``, które rozjeżdżają się na przełomie miesiąca (31 -> 1 daje
-    odstęp jednego dnia zamiast trzech).
+    w chwili odpalenia. Dzięki temu cykl dłuższy niż doba nie potrzebuje
+    wyrażeń typu ``day=*/3``, które rozjeżdżają się na przełomie miesiąca
+    (31 -> 1 daje odstęp jednego dnia zamiast trzech). Przy codziennym cyklu
+    dzień jest zawsze ten sam, a sloty to po prostu godziny.
 
     Efekt: każde źródło ma własny slot, więc na maszynie nigdy nie liczą się
     dwa naraz.

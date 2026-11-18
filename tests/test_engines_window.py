@@ -17,7 +17,7 @@ CRONTAB = ROOT / "shaper" / "engines.crontab"
 SOURCES = ROOT / "config" / "sources.toml"
 
 #: Zapas na sam silnik (start trwa kilka sekund) i na czas trwania przebiegu
-#: przed każdym ponowieniem — pierwsze liczenie geometrii polregio to ~3,5 min.
+#: przed każdym ponowieniem — pierwsze liczenie geometrii trwa minuty.
 START_MARGIN_MIN = 5
 RUN_MARGIN_MIN = 5
 

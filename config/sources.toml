@@ -9,8 +9,8 @@
 #   resolver  — html | ckan | nextcloud | direct
 #   select    — single | today_forward
 #   enabled   — opcjonalne, domyślnie true
-#   transform — opcjonalna przebudowa feedu po pobraniu: "polregio" i "ska"
-#               (naprawa modelu konkretnego przewoźnika) albo "odt" (kolory
+#   transform — opcjonalna przebudowa feedu po pobraniu: "ska" (naprawa
+#               modelu konkretnego przewoźnika) albo "odt" (kolory
 #               linii + ODT jako wystawca). Kilka po przecinku = po kolei,
 #               np. transform = "ska,odt"
 #   route_color / colors_file — dla transform = "odt": jedna barwa dla
@@ -19,10 +19,13 @@
 #               po przecinku; wymaga silników z profilu "shape"
 #   shape_area — obszar pokryty wycinkiem OSM, np. "poland"; kurs wyjeżdżający
 #               poza niego zostaje bez geometrii zamiast dostać zmyśloną
-#   run_day / run_at — slot źródła w cyklu: dzień (0..FEEDSODT_INTERVAL_DAYS-1)
-#               i godzina HH:MM. Każde źródło ma własny slot, więc na maszynie
-#               nigdy nie liczą się dwa naraz. Bez tych pól źródło idzie
-#               w dniu 0 o wspólnej godzinie FEEDSODT_RUN_AT.
+#   run_at    — slot źródła: godzina HH:MM, codziennie. Sloty są co 10 min
+#               od 00:00, każde źródło ma własny, więc na maszynie nigdy nie
+#               liczą się dwa naraz. Źródła z `shape` stoją od 00:50, bo
+#               silniki routujące wstają o 00:45 (shaper/engines.crontab).
+#               Bez run_at źródło idzie o wspólnej godzinie FEEDSODT_RUN_AT.
+#   run_day   — dzień w cyklu (0..FEEDSODT_INTERVAL_DAYS-1), tylko przy cyklu
+#               dłuższym niż doba; przy codziennym przebiegu zbędne.
 #
 # Polityki:
 #   single         — źródło daje jeden plik, bierzemy go
@@ -41,8 +44,7 @@
 # hint_date (DDMMYYYY z nazwy) pozwala pobrać 3 pliki zamiast 69.
 [[source]]
 name         = "wroclaw"
-run_day     = 0
-run_at      = "01:00"
+run_at      = "00:00"
 output       = "wroclaw-gtfs.zip"
 resolver     = "html"
 url          = "https://open-data.cui.wroclaw.pl/hdb/ft/6/"
@@ -56,8 +58,7 @@ select       = "today_forward"
 # razem 14 dni. Łańcuch spina je w jeden feed.
 [[source]]
 name     = "gzm-extend"
-run_day     = 0
-run_at      = "02:00"
+run_at      = "00:10"
 output   = "gzm-extend-gtfs.zip"
 resolver = "ckan"
 base_url = "https://otwartedane.metropoliagzm.pl"
@@ -69,8 +70,7 @@ select   = "today_forward"
 # w środku kilka formatów. Bierzemy najnowszy katalog i plik GTFS_*.zip.
 [[source]]
 name         = "czestochowa"
-run_day     = 0
-run_at      = "03:00"
+run_at      = "00:20"
 output       = "czestochowa-gtfs.zip"
 resolver     = "nextcloud"
 base_url     = "https://mpk.czest.pl/public/cloud"
@@ -81,11 +81,10 @@ select       = "single"
 
 # --- Gorzów Wielkopolski ------------------------------------------------------
 # Stały adres, ale plik pod nim się zmienia. Serwer bywa wrażliwy na częste
-# odpytywanie, a cykl trzydniowy i tak go oszczędza.
+# odpytywanie — jedno pobranie na dobę go nie obciąża.
 [[source]]
 name         = "gorzow"
-run_day     = 0
-run_at      = "04:00"
+run_at      = "00:30"
 output       = "gorzow-gtfs.zip"
 resolver     = "html"
 url          = "https://bip.mzk-gorzow.com.pl/gtfs.html"
@@ -98,8 +97,7 @@ select       = "single"
 # Uwaga: na stronie jest też drugi zip z komunikatami głosowymi.
 [[source]]
 name      = "zielona-gora"
-run_day     = 0
-run_at      = "05:00"
+run_at      = "00:40"
 output    = "zielona-gora-gtfs.zip"
 resolver  = "html"
 url       = "https://www.mzk.zgora.pl/dla-deweloperow"
@@ -109,8 +107,7 @@ select    = "single"
 # --- Rybnik -------------------------------------------------------------------
 [[source]]
 name         = "rybnik"
-run_day     = 1
-run_at      = "01:00"
+run_at      = "01:30"
 output       = "rybnik-gtfs.zip"
 resolver     = "html"
 url          = "https://km.rybnik.pl/435/pliki-do-pobrania.html"
@@ -124,8 +121,7 @@ select       = "single"
 # Uwaga: feed_info.txt nie zawiera dat obowiązywania — okno wychodzi z calendar.txt.
 [[source]]
 name         = "jaslo"
-run_day     = 1
-run_at      = "02:00"
+run_at      = "01:40"
 output       = "jaslo-gtfs.zip"
 resolver     = "html"
 url          = "https://www.mksjaslo.com.pl/strefa-pasazera/gtfs"
@@ -141,8 +137,7 @@ select       = "today_forward"
 # a nie z odczytanej strony. Sprawdź w logach pierwszego przebiegu.
 [[source]]
 name         = "slupsk"
-run_day     = 1
-run_at      = "03:00"
+run_at      = "01:50"
 output       = "slupsk-gtfs.zip"
 resolver     = "html"
 url          = "https://zimslupsk.pl/otwarte-dane.html"
@@ -151,47 +146,13 @@ hint_date    = "(\\d{4})-(\\d{2})-(\\d{2})"
 hint_order   = "ymd"
 select       = "today_forward"
 
-# --- POLREGIO (cała Polska) ---------------------------------------------------
-# Jeden stały adres, ale plik pod nim się zmienia.
-#
-# Feed źródłowy jest poprawny składniowo i bezużyteczny w praktyce:
-# route_long_name, route_desc i trip_headsign puste w 100%, a „trasa" to numer
-# pociągu — planer pokazuje 275 osobnych tras tam, gdzie pasażer widzi jedno
-# połączenie Gdynia — Hel. Dlatego transform = "polregio": zwija 10620 tras do
-# 26 kategorii (R, IR, BUS, K22...), dokłada kierunek i kierunkowskaz kursu,
-# firmowe kolory, prawdziwe współrzędne peronów z listy PLK i hierarchię
-# stacja -> perony.
-#
-# Po przebudowie feed idzie jeszcze przez krok `shape`: geometrię przejazdu
-# liczą silniki routujące po OSM (profil "shape" w docker-compose), osobno dla
-# kolei i dla komunikacji zastępczej. Dlatego POLREGIO ma własny slot — pierwszy
-# przebieg to kilka minut routowania 4,5 tys. sekwencji przystanków i nie ma
-# powodu, żeby dzieliło godzinę z czymkolwiek innym. Kolejne przebiegi idą
-# głównie z cache'a geometrii.
-#
-# UWAGA: adres zawiera token udostępnienia. Gdy w logach pojawi się 404,
-# trzeba wziąć nowy link ze strony przewoźnika.
-[[source]]
-name      = "polregio"
-run_day     = 1
-run_at      = "04:00"
-output    = "polregio-gtfs.zip"
-resolver  = "direct"
-url       = "https://transfer.polregio.pl/public/file/2xpjhbomseoindotgttcsg/GTFS.zip"
-filename  = "polregio-GTFS.zip"
-transform  = "polregio"
-shape      = "rail,bus"
-shape_area = "poland"
-select    = "single"
-
 # --- ZKGKM Olkusz -------------------------------------------------------------
 # 28 linii autobusowych, wszystkie z pustym route_color i bez shapes.txt.
 # Feed składa kiedyPrzyjedzie.pl, więc feed_info wskazuje ich, nie nas —
 # transform = "odt" przepisuje wystawcę i koloruje linie.
 [[source]]
 name        = "olkusz"
-run_day     = 1
-run_at      = "05:00"
+run_at      = "01:00"
 output      = "olkusz-gtfs.zip"
 resolver    = "direct"
 url         = "https://api.odt.org.pl/feed/9/google_transit.zip"
@@ -209,8 +170,7 @@ select      = "single"
 # shapes.txt jest w paczce, ale pusty: 0 wierszy, 0 kursów z shape_id.
 [[source]]
 name        = "mld"
-run_day     = 2
-run_at      = "01:00"
+run_at      = "00:50"
 output      = "mld-gtfs.zip"
 resolver    = "direct"
 url         = "https://gtfs.kolejemalopolskie.com.pl/GTFS-ST/GTFS.zip"
@@ -233,8 +193,7 @@ select      = "single"
 # geometrię liczymy sami, po torach.
 [[source]]
 name        = "ska"
-run_day     = 2
-run_at      = "02:00"
+run_at      = "01:10"
 output      = "ska-gtfs.zip"
 resolver    = "direct"
 url         = "https://www.kolejemalopolskie.com.pl/rozklady_jazdy/kml-ska-gtfs.zip"
@@ -250,8 +209,7 @@ select      = "single"
 # 26 linii autobusowych, wszystkie w jednej barwie organizatora.
 [[source]]
 name        = "zkkm"
-run_day     = 2
-run_at      = "03:00"
+run_at      = "01:20"
 output      = "zkkm-gtfs.zip"
 resolver    = "direct"
 url         = "https://zkkm.pl/files/pl/gtfs/google-transit-3.zip"

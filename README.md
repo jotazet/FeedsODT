@@ -13,7 +13,6 @@ http://localhost:8090/gtfs/zielona-gora-gtfs.zip
 http://localhost:8090/gtfs/rybnik-gtfs.zip
 http://localhost:8090/gtfs/jaslo-gtfs.zip
 http://localhost:8090/gtfs/slupsk-gtfs.zip
-http://localhost:8090/gtfs/polregio-gtfs.zip
 http://localhost:8090/gtfs/olkusz-gtfs.zip
 http://localhost:8090/gtfs/mld-gtfs.zip
 http://localhost:8090/gtfs/ska-gtfs.zip
@@ -30,19 +29,22 @@ docker compose up -d --build
 ```
 
 To wszystko. Pierwszy przebieg startuje od razu i bierze komplet źródeł, żeby
-`up -d` dawało pliki bez czekania. Potem każde źródło wraca **co trzy dni,
-w swoim własnym slocie** — jedna godzina, jedno źródło, nigdy dwa naraz:
+`up -d` dawało pliki bez czekania. Potem każde źródło wraca **codziennie,
+w swoim własnym slocie** — co 10 minut od 00:00, jedno źródło na slot, nigdy
+dwa naraz:
 
 ```
-dzień 1/3   01:00 wroclaw   02:00 gzm-extend   03:00 czestochowa   04:00 gorzow   05:00 zielona-gora
-dzień 2/3   01:00 rybnik    02:00 jaslo        03:00 slupsk        04:00 polregio 05:00 olkusz
-dzień 3/3   01:00 mld       02:00 ska          03:00 zkkm
+00:00 wroclaw        00:10 gzm-extend   00:20 czestochowa   00:30 gorzow
+00:40 zielona-gora   00:50 mld          01:00 olkusz        01:10 ska
+01:20 zkkm           01:30 rybnik       01:40 jaslo         01:50 slupsk
 ```
 
-Slot ustawia się per źródło polami `run_day` i `run_at` w `sources.toml`,
-długość cyklu — `FEEDSODT_INTERVAL_DAYS`. Dzień cyklu liczy się od stałej daty,
-a nie od startu kontenera, więc restart nie przesuwa kolejki, a przełom
-miesiąca nie robi krótszego odstępu (pułapka wyrażeń `day=*/3`).
+Slot ustawia się per źródło polem `run_at` w `sources.toml`. Źródła z `shape`
+stoją od 00:50, bo silniki routujące wstają o 00:45 (`shaper/engines.crontab`;
+pilnuje tego `tests/test_engines_window.py`). Cykl dłuższy niż doba nadal da się
+ustawić (`FEEDSODT_INTERVAL_DAYS` i `run_day`). Dzień cyklu liczy się wtedy od
+stałej daty, a nie od startu kontenera, więc restart nie przesuwa kolejki,
+a przełom miesiąca nie robi krótszego odstępu (pułapka wyrażeń `day=*/3`).
 
 Pliki lądują w `./gtfs` na hoście. Aktualny rozkład pokazuje
 `python -m feedsodt list`.
@@ -54,12 +56,16 @@ do listingu oznaczałoby wieczne „bez zmian".
 
 Źródło, które zawiodło, jest ponawiane **po 15 min, potem po 30 i po godzinie**
 — tylko ono, nie cała reszta. Po trzech nieudanych próbach czeka do swojego
-następnego slotu.
+slotu następnego dnia.
+
+Slot, który wypada w trakcie innego przebiegu (ponowienia, przebiegu startowego,
+ręcznego `run-once`), nie przepada: czeka co 2 minuty, najwyżej godzinę. Przy
+slotach co 10 minut pominięcie znaczyłoby dobę bez nowej wersji.
 
 ```bash
 docker compose logs -f fetcher                            # podgląd przebiegu
 docker compose exec fetcher python -m feedsodt run-once   # wymuszenie przebiegu
-docker compose exec fetcher python -m feedsodt run-once --only polregio
+docker compose exec fetcher python -m feedsodt run-once --only mld
 docker compose exec fetcher python -m feedsodt list       # co jest skonfigurowane
 ```
 
@@ -75,7 +81,6 @@ docker compose exec fetcher python -m feedsodt list       # co jest skonfigurowa
 | [Rybnik](https://km.rybnik.pl/435/pliki-do-pobrania.html) | `html` | `single` | |
 | [Jasło](https://www.mksjaslo.com.pl/strefa-pasazera/gtfs) | `html` | `today_forward` | `feed_info.txt` bez dat — okno z `calendar.txt` |
 | [Słupsk](https://zimslupsk.pl/otwarte-dane.html) | `html` | `today_forward` | pliki nazwane datą publikacji |
-| POLREGIO (cała Polska) | `direct` | `single` | przebudowywany (`transform`) i kształtowany (`shape`) |
 | [ZKGKM Olkusz](https://api.odt.org.pl/feed/9/google_transit.zip) | `direct` | `single` | 28 linii bez barw i bez geometrii — `transform = "odt"` + `shape` |
 | [MLD (Koleje Małopolskie)](https://gtfs.kolejemalopolskie.com.pl/GTFS-ST/GTFS.zip) | `direct` | `single` | 70 linii dowozowych, barwy z tabeli organizatora |
 | [SKA (Koleje Małopolskie)](https://www.kolejemalopolskie.com.pl/rozklady_jazdy/kml-ska-gtfs.zip) | `direct` | `single` | perony trzymane w `stop_headsign` — przebudowa `ska,odt` + `shape` |
@@ -87,9 +92,9 @@ docker compose exec fetcher python -m feedsodt list       # co jest skonfigurowa
 dopisuje się `transform = "<nazwa>"`, a feed po pobraniu przechodzi przez funkcję
 naprawczą z `feedsodt/transform/`. Bez tego pola plik jest publikowany bajt w bajt.
 
-Są trzy: `odt` — lekka, sterowana konfiguracją, dla feedów którym brakuje tylko
-barw i wystawcy; oraz `polregio` i `ska` — pełne przebudowy konkretnych,
-konkretnie zepsutych źródeł.
+Są dwie: `odt` — lekka, sterowana konfiguracją, dla feedów którym brakuje tylko
+barw i wystawcy; oraz `ska` — pełna przebudowa konkretnego, konkretnie
+zepsutego źródła.
 
 Pole `transform` przyjmuje kilka nazw po przecinku i wtedy feed przechodzi
 przez nie po kolei (`transform = "ska,odt"`), więc naprawa modelu przewoźnika
@@ -118,7 +123,6 @@ z jasności tła, więc dopisanie linii to jeden wpis, nie dwa.
 
 Wystawcą opublikowanej paczki jest zawsze Otwarte Dane Transportowe
 (`kontakt@odt.org.pl`) — przewoźnik zostaje nietknięty w `agency.txt`.
-Dotyczy to również feedu POLREGIO.
 
 ### `ska` — peron ma być przystankiem, nie kierunkowskazem
 
@@ -156,57 +160,20 @@ Rozbicie na perony ma jeszcze jeden skutek: kursy jadące tą samą trasą, ale
 z innych peronów, mają teraz różne sekwencje przystanków, więc kształtów jest
 241 zamiast 64 — i każdy prowadzi do właściwej krawędzi peronu.
 
-### `polregio` — pełna przebudowa
-
-**POLREGIO** — stan pliku źródłowego z 24.08.2026 i co z nim robimy:
-
-| w oryginale | po przebudowie |
-|---|---|
-| 10620 tras — jedna na numer pociągu | **26 tras** — jedna na kategorię (`R`, `IR`, `BUS`, `K22`…) |
-| `route_long_name` puste w 10620/10620 | rozwinięcie kategorii („REGIO", „InterREGIO") tam, gdzie jest pewne |
-| `trip_headsign` puste w 39766/39766 | stacja docelowa kursu |
-| brak `direction_id` | 0/1, zgodnie z kierunkiem jazdy |
-| `K7 BUS` i `K22 BUS` z `route_type=2` | `3`, tak jak zwykłe `BUS` |
-| `route_color` puste w 9412/10620 | barwa organizatora dla 19 kategorii, reszta firmowa czerwień `#DA2128` |
-| perony ze współrzędnymi dworca (4387/4387) | **3753 własnych współrzędnych** z listy peronów PLK |
-| `stops.txt` bez hierarchii | 1478 stacji nadrzędnych, perony przez `parent_station` |
-| 1451 przystanków, przy których nic nie staje | usunięte |
-| brak `feed_info.txt` | okres obowiązywania i wersja |
-
-Relacja („Gdynia Główna — Hel") nie jest już osobną trasą, ale nie ginie:
-kierunek jazdy siedzi w `direction_id`, a stacja docelowa w `trip_headsign`.
-Grupowanie po relacji jest nadal liczone wewnątrz — bez niego nie da się
-powiedzieć, który kurs jedzie „tam", a który „z powrotem".
-
-Kolory ustawia tabela `CATEGORY_COLORS` w
-[`transform/polregio.py`](feedsodt/transform/polregio.py). Kody organizatorów
-wojewódzkich mają własne barwy — te, których pasażer szuka na mapie: `K7`
-zielone, `K22` zielonożółte, `SKA1` błękitne, `SKA2` różowe. Kategoria spoza
-tabeli dostaje firmową czerwień, więc dołożenie kolejnej to jeden wpis.
-Kolor tekstu (czarny albo biały) dobiera się sam z jasności tła.
-
 ### Współrzędne peronów
 
 Przewoźnicy podają jeden punkt na stację i przypisują go wszystkim peronom —
-w POLREGIO peron I/1, peron II/2 i sam dworzec mają identyczne współrzędne we
-wszystkich 4387 wierszach. Prawdziwe położenie bierzemy z listy peronów PLK
-zbudowanej z OSM ([platforms-list.json](https://kasmar00.github.io/osm-plk-platform-validator/platforms-list.json)),
+peron I/1, peron II/2 i sam dworzec mają wtedy identyczne współrzędne.
+Prawdziwe położenie bierzemy z listy peronów PLK zbudowanej z OSM
+([platforms-list.json](https://kasmar00.github.io/osm-plk-platform-validator/platforms-list.json)),
 odświeżanej przy każdym przebiegu, z wersjonowaną kopią w `feedsodt/data/`
-na wypadek braku sieci.
-
-Trafienia na żywych danych (4245 używanych przystanków):
-
-| | wierszy |
-|---|---|
-| trafiony peron **i tor** (`II/3` → peron 2, tor 3) | 3678 |
-| trafiony sam peron — środek z jego torów | 75 |
-| oznaczenie peronu bez trafienia | 13 |
-| bez oznaczenia peronu (`BUS`, puste) — zostaje punkt stacji | 479 |
+na wypadek braku sieci. Korzysta z niej przebudowa `ska` (trafienia — w jej
+tabeli wyżej).
 
 Dwie pułapki w tym pliku, obie obsłużone w [`platforms.py`](feedsodt/platforms.py):
 klucze słownika gubią wielkie litery diakrytyczne (`Bardo Śląskie` →
 `bardo-laskie`), więc dopasowanie idzie po `station_name`, a nie po kluczu;
-numeracja peronów jest arabska, gdy POLREGIO podaje rzymską.
+numeracja peronów jest arabska, gdy przewoźnik podaje rzymską.
 
 ## Geometria przejazdu (`shape`)
 
@@ -242,11 +209,11 @@ rzeczy musiały być inaczej, żeby nie złamać gwarancji tego projektu:
   skrót sekwencji przystanków.
 * **Cache geometrii.** Kluczem są współrzędne sekwencji, więc poprawka
   położenia peronu unieważnia dokładnie te kształty, które przez niego
-  prowadzą. Pamiętane są też porażki (z ponowieniem po tygodniu) — 39 sekwencji
-  POLREGIO wychodzi poza wycinek OSM, a każda próba to kaskada zapytań
+  prowadzą. Pamiętane są też porażki (z ponowieniem po tygodniu) — sekwencja
+  spoza wycinka OSM się nie zroutuje, a każda próba to kaskada zapytań
   czekających na timeout.
 * **Strumieniowy zapis.** Oryginał przepuszcza feed przez gtfs_kit i pandas,
-  co przy 42 MB `stop_times.txt` gubi i pamięć, i stałe daty wpisów ZIP.
+  co przy dużym `stop_times.txt` gubi i pamięć, i stałe daty wpisów ZIP.
 
 ### Kiedy kształtu lepiej nie robić wcale
 
@@ -258,41 +225,20 @@ poprawnego, więc odsiewamy takie przypadki sami, dwoma niezależnymi sitami.
 **Poza obszarem.** `shape_area = "poland"` w `sources.toml` włącza test
 położenia przystanku w granicy administracyjnej z OSM
 ([`area.py`](feedsodt/area.py), granica wersjonowana w `feedsodt/data/`).
-Kurs, który wyjeżdża poza obszar, nie jest nawet wysyłany do silnika — 910
-kursów POLREGIO do Berlina, Cottbus, Bützow czy Görlitz zostaje bez
-geometrii. Granica rozdziela pary odległe o 2 km: Zgorzelec od Görlitz,
+Kurs, który wyjeżdża poza obszar, nie jest nawet wysyłany do silnika i zostaje
+bez geometrii. Granica rozdziela pary odległe o 2 km: Zgorzelec od Görlitz,
 Gubin od Guben, Słubice od Frankfurtu.
 
 **Linia z dala od przystanków.** Gdy policzona geometria mija któryś
-przystanek o więcej niż 500 m, kształt leci do kosza. Na zdrowych danych 99%
-przystanków leży w granicach 103 m od linii (peron stoi obok osi toru),
-a wynik zepsuty odstawał o 16–19 km — próg rozdziela te dwa światy z zapasem.
-To sito wyłapało 29 kształtów, w tym wszystkie 23 z ostatniej deski ratunku
-(`route_endpoints`, czyli odcinek od pierwszego do ostatniego przystanku
-z pominięciem reszty).
+przystanek o więcej niż 500 m, kształt leci do kosza. Na zdrowych danych
+przystanek leży kilkadziesiąt metrów od linii (peron stoi obok osi toru),
+a wynik zepsuty odstaje o kilometry — próg rozdziela te dwa światy z zapasem.
 
 Gdy silniki nie odpowiadają albo pokrycie spadnie poniżej 50%, źródło jest
 oznaczone jako nieudane i **poprzednia wersja zostaje opublikowana** — feed
 bez połowy geometrii jest gorszy niż wczorajszy komplet.
 
-### Wyniki
-
-POLREGIO, wycinek ogólnopolski:
-
-| | |
-|---|---|
-| unikalnych sekwencji przystanków | 4420 (dla 38736 kursów w obszarze) |
-| kształtów policzonych | 4391 — 4246 przez map matching, 145 przez routing |
-| kursy z geometrią | 38386 / 38736 (**99,1%**) |
-| odchylenie przystanku od linii | mediana 40 m, 99. centyl 103 m, maks. 394 m |
-| pierwszy przebieg / kolejne | 2 min / 8 s (z cache'u) |
-| bez geometrii z założenia | 910 kursów za granicę, 120 jednoprzystankowych |
-
-Żeby pokryć kursy transgraniczne, trzeba skleić wycinki `poland`,
-`brandenburg`, `mecklenburg-vorpommern` i `sachsen` (osmium-tool), przeliczyć
-grafy i dołożyć granicę Niemiec obok polskiej.
-
-Dlaczego to nie jest zwykłe „pobierz najnowszy plik":
+### Dlaczego nie zwykłe „pobierz najnowszy plik"
 
 * **Wrocław** trzyma 69 wersji w tabeli, która **nie jest posortowana po wersji**,
   a okresy obowiązywania się nakładają. Najnowsza opublikowana paczka potrafi
@@ -305,31 +251,31 @@ Dlaczego to nie jest zwykłe „pobierz najnowszy plik":
 
 ## Zasoby
 
-Zmierzone na komplecie 13 feedów, z ciepłym cache'em geometrii:
+Zmierzone na komplecie 13 feedów (jeszcze z najcięższym, ogólnopolskim feedem
+kolejowym, który już nie jest pobierany), z ciepłym cache'em geometrii — to
+górne granice:
 
 | | |
 |---|---|
 | przebieg wszystkich źródeł | **40 s**, szczyt RSS **125 MB** |
-| najcięższe źródło (polregio) | 10 s, szczyt RSS 119 MB |
 | pozostałe źródła | poniżej 2 s, 50–80 MB (z czego ~50 MB to sam Python) |
 | silniki routujące (gotowy graf) | rail 53–70 MB, bus 835–875 MB (na serwerze z `-Xmx1500m` RSS rośnie do ~1,7 GB) — potrzebne tylko w nocnym oknie, patrz `shaper/README.md` |
 | import grafu, jednorazowo | do 2,6 GB — patrz `shaper/README.md` |
-| pierwsze liczenie geometrii polregio | ok. 3,5 min, jednorazowo |
 
-W praktyce w slocie budzi się jedno źródło, więc typowa noc to kilkanaście
-sekund pracy i ok. 60 MB — poza dniem, w którym wypada polregio.
+W praktyce w slocie budzi się jedno źródło, więc slot to zwykle kilka sekund
+pracy i ok. 60 MB, a cała noc — kilkanaście slotów po kolei.
 
 Trzy rzeczy trzymają te liczby w ryzach i warto o nich wiedzieć przy zmianach:
 
 * **Geometria nie leży w pamięci.** Kształty wracają z cache'a SQLite po jednym
   przy zapisie `shapes.txt`, w kolejności posortowanych `shape_id`. Trzymanie
-  kompletu 943 tys. punktów kosztowało 156 MB.
+  kompletu punktów dużego feedu kosztowało ponad 150 MB.
 * **Sekwencje przystanków to dwie równoległe listy**, a identyfikatory są
   sprowadzone do jednego obiektu na przystanek — czytnik CSV tworzy nowy napis
-  dla każdego z 704 tys. wierszy, choć różnych przystanków jest 4245. Kosztowało
-  to 99 MB.
+  dla każdego wiersza `stop_times.txt`, choć różnych przystanków jest o rzędy
+  wielkości mniej. W dużym feedzie kosztowało to ok. 100 MB.
 * **`stop_times.txt` jest kopiowane strumieniowo** wszędzie, gdzie nie musimy go
-  przepisywać. 42 MB POLREGIO nigdy nie trafia na stertę w całości.
+  przepisywać. Duży plik nigdy nie trafia na stertę w całości.
 
 Na słabszej maszynie warto zejść z `FEEDSODT_SHAPE_WORKERS` do 4 — geometria
 liczy się dłużej, ale tylko przy pierwszym przebiegu.
@@ -381,12 +327,11 @@ Feed, który po pobraniu wymaga naprawy albo geometrii, i nie powinien blokować
 sobą reszty:
 
 ```toml
-transform   = "odt"          # albo "polregio"/"ska"; z feedsodt/transform/
+transform   = "odt"          # albo "ska"; z feedsodt/transform/
 route_color = "0462A2"       # dla "odt": barwa linii (albo colors_file)
 shape       = "rail,bus"     # wymaga profilu "shape" w docker compose
 shape_area  = "poland"       # kurs poza obszarem zostaje bez geometrii
-run_day     = 1              # dzień w cyklu (0..FEEDSODT_INTERVAL_DAYS-1)
-run_at      = "04:00"        # godzina; razem z run_day daje własny slot
+run_at      = "02:00"        # własny slot, codziennie; wolne co 10 min od 02:00
 ```
 
 Gdy wersji jest wiele, `hint_date` wyłuskuje datę początku obowiązywania z tekstu
@@ -426,7 +371,7 @@ wspólny rdzeń.
 
 | zmienna | domyślnie | znaczenie |
 |---|---|---|
-| `FEEDSODT_INTERVAL_DAYS` | `3` | co ile dni wraca każde źródło |
+| `FEEDSODT_INTERVAL_DAYS` | `1` | co ile dni wraca każde źródło (1 = codziennie) |
 | `FEEDSODT_RUN_AT` | `00:30` | godzina dla źródeł bez własnego `run_at` |
 | `FEEDSODT_RETRY_MINUTES` | `15,30,60` | odstępy ponawiania po błędzie; puste = bez ponawiania |
 | `FEEDSODT_RUN_ON_START` | `true` | przebieg zaraz po starcie kontenera |
@@ -474,8 +419,8 @@ sprawdzana przy starcie), osobny wpis w `index.json`, własny `try/except`.
 * **Przeterminowanie jest widoczne.** `index.json` podaje przy każdym feedzie
   `covers_today` i `days_ahead`, a log ostrzega, gdy feed nie obejmuje dzisiaj
   albo kończy się wcześniej, niż wypadnie następne sprawdzenie. Próg wynika
-  z `FEEDSODT_INTERVAL_DAYS`, nie ze stałej — przy cyklu 3-dniowym feed
-  kończący się za 3 dni jest już podejrzany.
+  z `FEEDSODT_INTERVAL_DAYS`, nie ze stałej — przy codziennym cyklu ostrzega
+  feed, który kończy się najpóźniej jutro.
 
 ## Wdrożenie na serwer
 
@@ -491,7 +436,7 @@ powstał) i `gtfs/.work/` (katalog roboczy, czyszczony przy każdym źródle).
 |---|---|---|
 | `osm/poland-latest.osm.pbf` | 2,0 GB | **wymagany** — kopiowanie tylko oszczędza pobieranie; instrukcja niżej |
 | `shaper/cache/` | 641 MB | gotowe grafy routingu. **Na maszynie poniżej 8 GB RAM to nie jest opcja, tylko konieczność** — import zajmuje do 2,6 GB i wywróci mniejszy serwer. Praca na gotowym grafie to ok. 1 GB |
-| `gtfs/.cache/` | 31 MB | policzona geometria i lista peronów; bez nich pierwsze kształtowanie POLREGIO trwa ok. 3,5 min |
+| `gtfs/.cache/` | 31 MB | policzona geometria i lista peronów; bez nich pierwsze kształtowanie trwa minuty |
 | `gtfs/*.zip` | 116 MB | feedy są od razu na miejscu, zamiast czekać na pierwszy przebieg |
 
 Sam kod z konfiguracją to 3 MB.
@@ -593,7 +538,7 @@ Testy **nie ruszają sieci** — budują sztuczne paczki GTFS w katalogu tymczas
 | `test_merge.py` | brak duplikatów `trip_id`, brak sierot, deduplikacja przystanków i kształtów, głosowanie większościowe, determinizm bajt w bajt, przerwanie przy zmianie schematu |
 | `test_gtfs_window.py` | odczyt okna z `feed_info.txt` i ścieżka zapasowa przez `calendar.txt`, odrzucanie uszkodzonych archiwów |
 | `test_sources.py` | rozpoznawanie odnośnika po adresie i po podpisie, podpowiedzi dat, walidacja `sources.toml`, sloty w cyklu wielodniowym i ich rotacja |
-| `test_transform_polregio.py` | zwijanie tras do kategorii, `direction_id` i kierunkowskaz, współrzędne peronów, hierarchia stacja–peron, determinizm |
+| `test_lock_wait.py` | slot trafiający na trwający przebieg czeka, zamiast przepaść; limit oczekiwania |
 | `test_platforms.py` | translacja oznaczeń peronów, składanie diakrytyków w nazwach stacji, ścieżki zapasowe przy braku sieci |
 | `test_shaping.py` | deterministyczne `shape_id`, cache (również porażek), próg pokrycia, odsiew kursów poza obszarem i kształtów odbiegających od przystanków |
 | `test_area.py` | test położenia w granicy, dziury w wielokątach, pary stacji po dwóch stronach rzeki granicznej |
