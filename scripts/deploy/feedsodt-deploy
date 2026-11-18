@@ -1,0 +1,73 @@
+#!/bin/sh
+# Wdraża tag wydania (docs/wdrozenie.md); woła go zadanie deploy na runnerze serwera.
+# Instalowany ręcznie jako /usr/local/sbin/feedsodt-deploy, własność roota, uruchamiany
+# przez sudo jako użytkownik systemowy feedsodt, właściciel katalogu wdrożenia: runner nie
+# może uruchomić nic innego.
+#
+#   feedsodt-deploy vX.Y.Z < production.env
+#
+# Pyta GitHuba o commit taga, odmawia, jeśli nie leży na main, rozpakowuje ten commit do
+# katalogu tymczasowego i oddaje sprawę jego scripts/deploy/release.sh, który dopiero po
+# swoich sprawdzeniach przenosi pliki wydania do katalogu wdrożenia i uruchamia obrazy
+# zbudowane przez CI dla taga. .env ze standardowego wejścia jest łączony z plikiem hosta:
+# wejście może ustawić tylko ustawienia fetchera, plik hosta resztę i wygrywa
+# (scripts/deploy/envfile.py, merge). Na serwerze nie ma checkoutu. Celowo krótki, żeby
+# rzadko trzeba go było instalować od nowa; kroki wdrożenia są w release.sh.
+#
+# Wzorowany na scripts/deploy/odt-deploy z backendu ODT.
+set -eu
+
+FEEDSODT_DIR=/srv/feedsodt
+REPOSITORY=jotazet/FeedsODT
+API="https://api.github.com/repos/$REPOSITORY"
+# Porty, ścieżki, limity, COMPOSE_*: pisze root, nigdy wydanie.
+HOST_ENV=/etc/odt/feedsodt-host.env
+
+tag="${1:-}"
+if ! printf '%s\n' "$tag" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; then
+    echo "feedsodt-deploy: oczekiwano taga wydania vX.Y.Z, jest '$tag'" >&2
+    exit 2
+fi
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cat > "$work/release.env"
+
+if [ ! -f "$HOST_ENV" ] \
+    || [ -n "$(find "$HOST_ENV" "${HOST_ENV%/*}" -maxdepth 0 \( ! -user root -o -perm /022 \) -print)" ]; then
+    echo "feedsodt-deploy: brak $HOST_ENV albo on lub jego katalog nie należy wyłącznie do roota" >&2
+    exit 1
+fi
+
+# Jedno pole odpowiedzi API GitHuba.
+field() {
+    curl -fsS --retry 3 -H 'Accept: application/vnd.github+json' "$API/$1" \
+        | python3 -I -c 'import json, sys; print(json.load(sys.stdin)[sys.argv[1]])' "$2"
+}
+commit="$(field "commits/$tag" sha)"
+main="$(field commits/main sha)"
+# "identical" albo "ahead": main zawiera commit taga.
+case "$(field "compare/$commit...$main" status)" in
+    identical | ahead) ;;
+    *)
+        echo "feedsodt-deploy: $tag ($commit) nie leży na main" >&2
+        exit 1
+        ;;
+esac
+
+# envfile.py z main, nie z taga: lista dozwolonych kluczy nie zależy od autora taga.
+curl -fsS --retry 3 -o "$work/envfile.py" \
+    "https://raw.githubusercontent.com/$REPOSITORY/$main/scripts/deploy/envfile.py"
+python3 -I "$work/envfile.py" merge "$work/release.env" "$HOST_ENV" "$work/production.env"
+
+# Pliki wydania po commicie: przesunięcie taga po sprawdzeniu wyżej niczego nie zmienia.
+# Na razie poza katalogiem wdrożenia: release.sh przeniesie je dopiero, gdy wydanie ruszy.
+mkdir "$work/src"
+curl -fsSL --retry 3 "https://codeload.github.com/$REPOSITORY/tar.gz/$commit" \
+    | tar -xz -C "$work/src" --strip-components=1
+
+# release.sh zapisuje działającą wersję jako FEEDSODT_VERSION w .env.
+running="$(sed -n 's/^FEEDSODT_VERSION=//p' "$FEEDSODT_DIR/.env" 2>/dev/null | tail -n 1)"
+echo "feedsodt-deploy: ${running:-brak} -> $tag ($commit)"
+FEEDSODT_DIR="$FEEDSODT_DIR" sh "$work/src/scripts/deploy/release.sh" \
+    "$tag" "$work/production.env" "$work/src"

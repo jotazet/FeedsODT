@@ -1,0 +1,135 @@
+name: CI
+
+# Pull requesty i main przechodzą testy. Main i tagi wypychają też obrazy do ghcr.io.
+# Tag wydania vX.Y.Z, gdy wszystko przejdzie, idzie na produkcję przez zadanie deploy
+# (docs/wdrozenie.md). Wzorowane na CI backendu ODT.
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+# Liczy się tylko najnowszy przebieg pull requesta. Pushe (main, tagi) dostają własną
+# grupę (ID przebiegu): wspólna anulowałaby czekający przebieg, gdy w kolejce stanie następny.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  testy:
+    runs-on: ubuntu-24.04
+    # Zawieszony test kończy się tu, zamiast trzymać runner sześć godzin.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Token nie zostaje w .git/config, gdzie czytałby go każdy następny krok.
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      # Python obrazu (Dockerfile), nie systemowy runnera.
+      - run: uv venv --python 3.13 && uv pip install -e ".[dev]"
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/python -m pytest
+
+  # Obraz fetchera, pliki Compose, skrypty wdrożenia i same workflowy.
+  produkcja:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Wstrzykiwanie w szablony, akcje bez przypiętego commitu, tokeny z nadmiarem uprawnień.
+      - name: Audyt workflowów
+        run: >-
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt
+          ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+          --offline --format=github .github/
+      - name: Lint skryptów powłoki
+        run: >-
+          docker run --rm -v "$PWD:/mnt:ro" -w /mnt
+          koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+          --severity=warning scripts/deploy/feedsodt-deploy scripts/deploy/release.sh shaper/engines.sh
+      - name: Sprawdzenie produkcyjnych plików Compose
+        env:
+          COMPOSE_FILE: docker-compose.yml:docker-compose.prod.yml
+          FEEDSODT_VERSION: v0.0.0
+        run: docker compose --profile shape config --quiet
+      - run: docker build --tag feedsodt .
+      - name: Fetcher w obrazie wczytuje konfigurację źródeł
+        run: docker run --rm feedsodt list
+
+  # Obrazy main i każdego taga w rejestrze GitHuba: serwer ściąga obrazy taga, zamiast
+  # je budować. Nie dla pull requestów.
+  obrazy:
+    needs: [testy, produkcja]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    # Obraz kolejowy kompiluje OpenRailRouting mavenem.
+    timeout-minutes: 40
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Budowa i push ghcr.io/jotazet/feedsodt i feedsodt-railrouting
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ "$REF_TYPE" = tag ]; then version="$REF_NAME"; else version=main; fi
+          printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+          for spec in feedsodt=. feedsodt-railrouting=shaper/openrailrouting; do
+            image="ghcr.io/jotazet/${spec%%=*}"
+            docker build --pull --tag "$image:$version" --tag "$image:sha-$SHA" "${spec#*=}"
+            docker push --all-tags "$image"
+          done
+          docker logout ghcr.io
+
+  # Wydanie: zielony tag vX.Y.Z na main idzie na produkcję.
+  deploy:
+    needs: [testy, produkcja, obrazy]
+    if: startsWith(github.ref, 'refs/tags/v')
+    # Runner na serwerze produkcyjnym, jako użytkownik odt-runner: bez Dockera, przez sudo
+    # tylko feedsodt-deploy jako użytkownik aplikacji (docs/wdrozenie.md). Żadne inne
+    # zadanie nie może używać tej etykiety.
+    runs-on: [self-hosted, odt-production]
+    # Środowisko oddaje swoje zmienne tylko tagom v* (reguła wdrożeń w jego ustawieniach).
+    environment: production
+    timeout-minutes: 30
+    # Nigdy dwa wdrożenia naraz i nigdy nie przerywamy jednego w połowie.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      # Serwer odmawia taga spoza vX.Y.Z albo spoza main (feedsodt-deploy): sprawdzenie tutaj
+      # działałoby z pliku workflowu samego taga, który kontroluje autor taga.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Każda zmienna środowiska. Serwer odmawia zmiennej spoza RELEASE_VARIABLES
+      # w scripts/deploy/envfile.py. Nowy sekret: dopisz go tu (env) i w SECRETS tamże.
+      - name: Zapis .env ze zmiennych środowiska
+        env:
+          VARS_JSON: ${{ toJSON(vars) }}
+        run: python3 -I scripts/deploy/envfile.py write "$RUNNER_TEMP/production.env"
+      # feedsodt-deploy bierze tag jako jedyny argument, a .env ze standardowego wejścia.
+      - name: Wdrożenie
+        env:
+          TAG: ${{ github.ref_name }}
+          APP_USER: ${{ vars.DEPLOY_APP_USER || 'feedsodt' }}
+        run: sudo -n -u "$APP_USER" /usr/local/sbin/feedsodt-deploy "$TAG" < "$RUNNER_TEMP/production.env"
+      # Runner nie jest wyrzucany po zadaniu: plik nie może zostać na jego dysku.
+      - name: Usunięcie .env
+        if: always()
+        run: rm -f "$RUNNER_TEMP/production.env"

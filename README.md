@@ -296,8 +296,10 @@ kończy się na pierwszej, bo kolejne się z nią nakładają.
 ## Dodanie miasta
 
 Zwykle bez pisania kodu — wystarczy blok w [`config/sources.toml`](config/sources.toml).
-Plik jest montowany do kontenera, a konfiguracja wczytuje się na nowo przed każdym
-przebiegiem, więc **restart nie jest potrzebny**. Żeby sprawdzić zmianę od razu:
+Lokalnie plik jest montowany do kontenera, a konfiguracja wczytuje się na nowo przed
+każdym przebiegiem, więc **restart nie jest potrzebny**. Na produkcji `config/` jest
+w obrazie, więc nowe źródło trafia tam z wydaniem ([docs/wdrozenie.md](docs/wdrozenie.md)).
+Żeby sprawdzić zmianę od razu:
 
 ```bash
 docker compose exec fetcher python -m feedsodt list
@@ -374,7 +376,7 @@ wspólny rdzeń.
 | `FEEDSODT_INTERVAL_DAYS` | `1` | co ile dni wraca każde źródło (1 = codziennie) |
 | `FEEDSODT_RUN_AT` | `00:30` | godzina dla źródeł bez własnego `run_at` |
 | `FEEDSODT_RETRY_MINUTES` | `15,30,60` | odstępy ponawiania po błędzie; puste = bez ponawiania |
-| `FEEDSODT_RUN_ON_START` | `true` | przebieg zaraz po starcie kontenera |
+| `FEEDSODT_RUN_ON_START` | `true` (produkcja: `false`) | przebieg zaraz po starcie kontenera |
 | `FEEDSODT_OUTPUT_DIR` | `/data/gtfs` | katalog wyjściowy |
 | `FEEDSODT_SOURCES` | `/app/config/sources.toml` | plik konfiguracji źródeł |
 | `FEEDSODT_PORT` | `8090` | port nginx-a na hoście |
@@ -385,6 +387,12 @@ wspólny rdzeń.
 | `FEEDSODT_SHAPE_GPS_ACCURACY` | `50` | tolerancja map matchingu w metrach |
 | `FEEDSODT_OSM_FILE` | `./osm/poland-latest.osm.pbf` | wycinek OSM dla silników (`.env`, tylko compose) |
 | `TZ` | `Europe/Warsaw` | strefa czasowa harmonogramu |
+
+Lokalnie wszystko ustawia `.env` (wzorzec: `.env.example`). Na produkcji
+`FEEDSODT_INTERVAL_DAYS`, `FEEDSODT_RUN_AT`, `FEEDSODT_RETRY_MINUTES`,
+`FEEDSODT_RUN_ON_START`, `FEEDSODT_SHAPE_WORKERS` i `FEEDSODT_SHAPE_GPS_ACCURACY` są
+zmiennymi środowiska `production` na GitHubie, a porty, ścieżki i limity stoją w pliku
+hosta ([docs/wdrozenie.md](docs/wdrozenie.md)).
 
 ## Gwarancje
 
@@ -423,6 +431,15 @@ sprawdzana przy starcie), osobny wpis w `index.json`, własny `try/except`.
   feed, który kończy się najpóźniej jutro.
 
 ## Wdrożenie na serwer
+
+Produkcja ODT wdraża się sama z tagu `vX.Y.Z` przez GitHub Actions: obrazy z ghcr.io,
+ustawienia ze środowiska `production` na GitHubie, bez checkoutu na serwerze. Całość,
+z jednorazową konfiguracją serwera i przeniesieniem ze starego checkoutu, opisuje
+[docs/wdrozenie.md](docs/wdrozenie.md).
+
+Poniżej: uruchomienie z katalogu na nowej maszynie, bez wydań. To samo przygotowanie
+danych (wycinek OSM, grafy silników, prawa do `gtfs/`) dotyczy też katalogu wdrożenia
+`/srv/feedsodt`.
 
 Po skopiowaniu katalogu wystarczy Docker z wtyczką `compose` — nic więcej się
 nie instaluje.
@@ -526,8 +543,13 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt
 
 ```bash
 .venv/bin/pip install -e ".[dev]"
+.venv/bin/ruff check .
 .venv/bin/python -m pytest
 ```
+
+CI (`.github/workflows/ci.yml`) robi to samo w każdym pull requeście, a do tego audyt
+workflowów (zizmor), shellcheck skryptów wdrożenia i sprawdzenie produkcyjnych plików
+Compose.
 
 Testy **nie ruszają sieci** — budują sztuczne paczki GTFS w katalogu tymczasowym
 (`tests/conftest.py`) i sprawdzają logikę, w której realnie łatwo o subtelny błąd:
@@ -544,5 +566,7 @@ Testy **nie ruszają sieci** — budują sztuczne paczki GTFS w katalogu tymczas
 | `test_area.py` | test położenia w granicy, dziury w wielokątach, pary stacji po dwóch stronach rzeki granicznej |
 | `test_transform_odt.py` | barwy z tabeli i domyślne, dopasowanie po oznaczeniu linii, ODT jako wystawca, nienaruszalność pozostałych tabel, poprawność wersjonowanych tabel barw |
 | `test_transform_ska.py` | przeniesienie peronu ze `stop_headsign` do `stops.txt`, hierarchia stacja–peron, naprawa współrzędnych 0,0, kierunkowskaz i kierunek jazdy |
+| `test_deploy.py` | `.env` wydania: zapis ze zmiennych GitHuba, odrzucanie ustawień hosta, pierwszeństwo pliku hosta; zmienne wydania docierają do fetchera; pliki pobierane przez serwer istnieją |
+| `test_protect_main_hook.py` | hook Claude Code, który nie pozwala commitować ani pushować na `main` i pyta przed pushem taga `v*` |
 
 Pełny przebieg po prawdziwych portalach to nadal `python -m feedsodt run-once`.
