@@ -376,6 +376,7 @@ def run_all(
 
     with _exclusive(app.work_dir):
         index = Index.load(app.output_dir)
+        index.prune({cfg.name for cfg in app.sources}, app.output_dir)
         session = build_session()
         results: list[SourceResult] = []
 
@@ -416,6 +417,17 @@ def run_all(
     else:
         log.info("koniec przebiegu: %s", summary)
     return results
+
+
+def _job_key(at: str | None, only: set[str] | None) -> str:
+    """Część id zadania: slot, a bez niego nazwy źródeł. Ponowienia z różnych slotów
+    mają at=None i ten sam numer próby; przy wspólnym id `replace_existing` kasowałby
+    ponowienie innego źródła."""
+    if at:
+        return at
+    if only:
+        return ",".join(sorted(only))
+    return "all"
 
 
 def _scheduled_run(
@@ -460,7 +472,7 @@ def _scheduled_run(
             _scheduled_run,
             DateTrigger(run_date=when),
             args=[fallback, scheduler, at, only, attempt, waits + 1],
-            id=f"wait-{at or 'manual'}-{attempt}",
+            id=f"wait-{_job_key(at, only)}-{attempt}",
             replace_existing=True,
             misfire_grace_time=600,
         )
@@ -490,7 +502,7 @@ def _scheduled_run(
         # Ponowienie idzie po nazwach, nie po grupie: interesują nas dokładnie
         # te źródła, które zawiodły, niezależnie od tego, o której się liczą.
         args=[fallback, scheduler, None, failed, attempt + 1],
-        id=f"retry-{at or 'manual'}-{attempt}",
+        id=f"retry-{_job_key(None, failed)}-{attempt}",
         replace_existing=True,
         misfire_grace_time=600,
     )
