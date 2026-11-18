@@ -176,6 +176,38 @@ def test_build_updates_detour_uses_fallback_stops(national_zip):
     assert stats["objazd"] == 1
 
 
+def test_build_updates_never_lets_time_go_back(national_zip):
+    static = _plk_static(national_zip)
+    stats = defaultdict(int)
+    trains = [
+        {
+            "od": "2026-11-18",
+            "sid": 100,
+            "oid": 1,
+            "st": [
+                {"psn": 1, "asn": 1, "id": 1000, "ad": "2026-11-18T08:00:00", "cf": True},
+                # Przyjazd opóźniony, odjazd został z rozkładu (przed przyjazdem).
+                {
+                    "psn": 2,
+                    "asn": 2,
+                    "id": 2000,
+                    "aa": "2026-11-18T08:40:00",
+                    "ad": "2026-11-18T08:31:00",
+                    "cf": True,
+                },
+                {"psn": 3, "asn": 3, "id": 3000, "aa": "2026-11-18T08:35:00"},
+            ],
+        }
+    ]
+    [update] = build_updates(static, trains, stats)
+    stu = to_feed([update], 1).entity[0].trip_update.stop_time_update
+    at = int(dt.datetime(2026, 11, 18, 8, 40, tzinfo=TZ).timestamp())
+    assert stu[1].arrival.time == stu[1].departure.time == stu[2].arrival.time == at
+    assert stu[1].departure.uncertainty == 1  # już nie potwierdzony
+    assert stu[0].departure.uncertainty == 0  # czasów w porządku nie rusza
+    assert stats["czasy cofnięte -> poprawione"] == 2
+
+
 def test_build_updates_matches_by_train_number(national_zip):
     static = _plk_static(national_zip)
     # /schedules/shortened powiązał nieznane (sid, oid) z numerem 1234.

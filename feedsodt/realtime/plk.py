@@ -10,6 +10,7 @@ Copyright (c) 2025-2026 Mikołaj Kuranowski, licencja MIT (LICENSE.PolishTrainsG
   * stop_time_update po plk_sequence; odwołane stacje -> SKIPPED, cały kurs -> CANCELED,
     stacja spoza rozkładu -> objazd (REPLACEMENT, przystanki <id>_FALLBACK)
   * uncertainty 0 = czas potwierdzony (cf), 1 = prognoza
+  * odstępstwo od oryginału: czasy w kursie nie mogą się cofać (monotonic)
 
 Dane: PKP Polskie Linie Kolejowe S.A., Otwarte Dane Kolejowe (regulamin API wymaga
 wskazania PLK jako źródła).
@@ -266,6 +267,27 @@ class PlkApi:
 
 
 # ───────────────────────── TripUpdates ─────────────────────────
+def monotonic(stop_times):
+    """Czas cofający się względem poprzedniego zdarzenia (przyjazd po odjeździe, stacja
+    przed poprzednią) podnosi do poprzedniego i oznacza jako prognozę. API PLK zostawia
+    tak czasem stary czas z rozkładu obok opóźnionego; walidator GTFS-RT uznaje to za
+    błąd (E022, E025), a OpenTripPlanner odrzuca wtedy całą aktualizację kursu.
+    Zwraca liczbę poprawionych czasów."""
+    last, fixed = 0, 0
+    for s in stop_times:
+        if s.get("cancelled"):
+            continue
+        for ev in ("arrival", "departure"):
+            t = s.get(ev)
+            if not t:
+                continue
+            if t < last:
+                s[ev], s["confirmed"] = last, False
+                fixed += 1
+            last = s[ev]
+    return fixed
+
+
 def build_updates(static, trains, stats):
     """Lista słowników TU (format jak live.json Kuranowskiego)."""
     out = []
@@ -320,6 +342,7 @@ def build_updates(static, trains, stats):
                         }
                     )
                     seq += 1
+            stats["czasy cofnięte -> poprawione"] += monotonic(first["stop_times"])
             out.append(first)
             out += [dict(base(t), cancelled=True) for t in tids[1:]]
             stats["objazd"] += 1
@@ -343,6 +366,8 @@ def build_updates(static, trains, stats):
                     track=track,
                 )
             ups[tid]["stop_times"].append(u)
+        for u in ups.values():
+            stats["czasy cofnięte -> poprawione"] += monotonic(u["stop_times"])
         out += [u for u in ups.values() if u["stop_times"]]
     return out
 

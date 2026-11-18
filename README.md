@@ -399,6 +399,11 @@ a pozycje biorą przewidywane czasy z zapasowego feedu
 zapytań nie starczy do północy, rozkłada resztę równo. Plik zostaje wtedy poprzedni;
 jego wiek mówi `header.timestamp`.
 
+Jedno odstępstwo od PolishTrainsGTFS: API PLK zostawia czasem w kursie czas, który się
+cofa (np. odjazd z rozkładu przed opóźnionym przyjazdem). Taki czas podnosimy do
+poprzedniego i oznaczamy jako prognozę (`uncertainty` 1), bo OpenTripPlanner odrzuca
+całą aktualizację kursu z cofającym się czasem. Liczbę poprawek podaje log przebiegu.
+
 Źródła danych i licencje: rozkład i realizacja kursów PKP Polskie Linie Kolejowe S.A.
 (regulamin API wymaga wskazania PLK jako źródła); logika TripUpdates przeniesiona
 z [PolishTrainsGTFS](https://github.com/MKuranowski/PolishTrainsGTFS) Mikołaja
