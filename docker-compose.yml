@@ -5,9 +5,9 @@ services:
     restart: unless-stopped
     environment:
       TZ: Europe/Warsaw
-      # Slot każdego źródła (run_day + run_at) stoi w config/sources.toml.
+      # Slot każdego źródła (run_at, codziennie) stoi w config/sources.toml.
       # Poniższe to tylko wartości domyślne dla źródeł, które go nie podały.
-      FEEDSODT_INTERVAL_DAYS: "3"
+      FEEDSODT_INTERVAL_DAYS: "1"
       FEEDSODT_RUN_AT: "00:30"
       # Odstępy ponawiania dla źródeł, które zawiodły. Puste = bez ponawiania.
       FEEDSODT_RETRY_MINUTES: "15,30,60"

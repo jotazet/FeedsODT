@@ -40,7 +40,7 @@ class SourceConfig:
     resolver: str
     select: str
     enabled: bool = True
-    #: Opcjonalna przebudowa feedu po pobraniu, np. "polregio". Puste = publikujemy
+    #: Opcjonalna przebudowa feedu po pobraniu, np. "ska". Puste = publikujemy
     #: to, co dał przewoźnik, bajt w bajt.
     transform: str = ""
     #: Opcjonalne dorobienie shapes.txt: lista trybów, np. "rail,bus".
@@ -301,7 +301,7 @@ def load_config() -> AppConfig:
         cache_dir=Path(os.environ.get("FEEDSODT_CACHE_DIR", output_dir / ".cache")),
         config_dir=sources_path.parent,
         run_at=run_at,
-        interval_days=_env_int("FEEDSODT_INTERVAL_DAYS", 3),
+        interval_days=_env_int("FEEDSODT_INTERVAL_DAYS", 1),
         run_on_start=_env_bool("FEEDSODT_RUN_ON_START", True),
         timezone=os.environ.get("TZ", "Europe/Warsaw"),
         rail_url=os.environ.get("FEEDSODT_RAIL_URL", "http://railrouting:8989"),

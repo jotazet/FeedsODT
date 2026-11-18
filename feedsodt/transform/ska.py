@@ -320,7 +320,7 @@ def _describe_trips(
     """Kierunkowskaz i kierunek jazdy, wyliczone z sekwencji przystanków.
 
     Oryginał ma oba pola puste we wszystkich 1224 kursach. Kierunkowskaz to
-    stacja docelowa, a ``direction_id`` — jak w POLREGIO — bierze się z pary
+    stacja docelowa, a ``direction_id`` bierze się z pary
     krańców: oba kierunki tej samej relacji dostają ten sam klucz, więc jeden
     z nich jest „tam", a drugi „z powrotem".
     """

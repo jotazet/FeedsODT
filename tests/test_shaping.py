@@ -220,8 +220,8 @@ class TestCache:
         assert router.calls == 2
 
     def test_porazka_nie_jest_ponawiana_nastepnej_nocy(self, tmp_path, monkeypatch):
-        """39 sekwencji POLREGIO wychodzi poza wycinek OSM. Każda próba to
-        kaskada trzech zapytań czekających na timeout — minuta na przebieg."""
+        """Sekwencja spoza wycinka OSM się nie zroutuje. Każda próba to
+        kaskada trzech zapytań czekających na timeout — przy każdym przebiegu."""
         stub = Router(fail_for={"50.00"})
         monkeypatch.setattr(shaping, "fetch_trip_geometry", stub)
         monkeypatch.setattr(shaping, "_check_engines", lambda clients, sequences: None)

@@ -6,7 +6,7 @@ u niego zostaje ``agency.txt``. Bez tego konsument, który zgłasza błąd
 w danych, pisze do R&G PLUS albo do kiedyPrzyjedzie.pl zamiast do nas.
 
 Oryginały podają tu co popadnie: „kiedyPrzyjedzie.pl" (Olkusz, ZKKM),
-„R&G PLUS Sp. z o.o." (MLD), a POLREGIO nie ma ``feed_info.txt`` w ogóle.
+„R&G PLUS Sp. z o.o." (MLD), a bywa, że ``feed_info.txt`` nie ma w ogóle.
 """
 
 from __future__ import annotations

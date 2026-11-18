@@ -40,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         metavar="NAZWY",
         help="run-once: przebieg tylko po wskazanych źródłach (po przecinku). "
         "Przydaje się przy dokładaniu miasta i przy źródłach, które liczą się "
-        "minutami, jak polregio z kształtowaniem geometrii.",
+        "minutami, jak te z kształtowaniem geometrii.",
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="logi debugowania")
     args = parser.parse_args(argv)
@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
         retries = ", ".join(f"+{minutes} min" for minutes in app.retry_minutes)
         print(f"ponowienia przy błędzie: {retries or 'wyłączone'}")
         print(f"strefa czasowa: {app.timezone}")
-        print(f"cykl: co {app.interval_days} dni")
+        print("cykl: codziennie" if app.interval_days == 1 else f"cykl: co {app.interval_days} dni")
         dzis = app.cycle_day(date.today())
         for (day, at), group in app.schedules().items():
             teraz = "  <- dzisiaj" if day == dzis else ""

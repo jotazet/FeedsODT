@@ -215,9 +215,9 @@ class TestKonfiguracja:
 class TestHarmonogram:
     """Własna godzina przebiegu dla źródła.
 
-    POLREGIO przechodzi przez przebudowę feedu i routowanie geometrii, więc
-    liczy się minutami, a nie sekundami. Wspólny slot z ośmioma miastami
-    znaczyłby, że wszystkie czekają na nie bez powodu.
+    Źródło z przebudową feedu i routowaniem geometrii liczy się minutami,
+    a nie sekundami. Wspólny slot z resztą miast znaczyłby, że wszystkie
+    czekają na nie bez powodu.
     """
 
     def zapisz(self, tmp_path, tresc: str):
@@ -230,8 +230,8 @@ class TestHarmonogram:
             tmp_path,
             """
             [[source]]
-            name = "polregio"
-            output = "polregio.zip"
+            name = "kolej"
+            output = "kolej.zip"
             resolver = "direct"
             select = "single"
             url = "https://example.pl/GTFS.zip"
@@ -275,12 +275,12 @@ class TestHarmonogram:
             tmp_path,
             """
             [[source]]
-            name = "polregio"
-            output = "polregio.zip"
+            name = "kolej"
+            output = "kolej.zip"
             resolver = "direct"
             select = "single"
             url = "https://example.pl/GTFS.zip"
-            transform = "polregio"
+            transform = "ska"
             shape = "rail,bus"
             run_at = "02:00"
             """,
@@ -346,7 +346,7 @@ class TestHarmonogram:
             SourceConfig(name="a", output="a.zip", resolver="html", select="single"),
             SourceConfig(name="b", output="b.zip", resolver="html", select="single", run_at="01:00"),
             SourceConfig(
-                name="polregio", output="p.zip", resolver="direct", select="single",
+                name="kolej", output="k.zip", resolver="direct", select="single",
                 run_day=1, run_at="04:00",
             ),
             SourceConfig(
@@ -358,7 +358,7 @@ class TestHarmonogram:
             for slot, group in self.aplikacja(tmp_path, sources).schedules().items()
         }
 
-        assert grupy == {(0, "00:30"): ["a"], (0, "01:00"): ["b"], (1, "04:00"): ["polregio"]}
+        assert grupy == {(0, "00:30"): ["a"], (0, "01:00"): ["b"], (1, "04:00"): ["kolej"]}
 
     def test_kazda_godzina_to_jedno_zadanie_cron(self, tmp_path):
         """Dzień cyklu rozstrzyga się przy odpaleniu, więc źródła z różnych dni

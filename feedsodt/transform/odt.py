@@ -13,7 +13,7 @@ paczki ma pisać do nas — patrz :mod:`feedsodt.feedinfo`.
 
 Reszta tabel idzie bajt w bajt. To celowo *nie* jest miejsce na naprawianie
 konkretnego przewoźnika: gdy feed wymaga przebudowy relacji, przystanków czy
-kierunków, pisze się osobną transformację, jak ``polregio``.
+kierunków, pisze się osobną transformację, jak ``ska``.
 
 Konfiguracja w bloku ``[[source]]``::
 

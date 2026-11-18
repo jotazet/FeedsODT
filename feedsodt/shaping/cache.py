@@ -1,17 +1,17 @@
 """Cache geometrii kształtów między przebiegami.
 
-Routowanie 4,5 tys. sekwencji przystanków POLREGIO zajmuje kilka minut,
-a feed obowiązuje do grudnia i między publikacjami zmienia się w nim niewiele.
-Bez cache'a każdy przebieg liczyłby od zera to samo.
+Routowanie wszystkich sekwencji przystanków dużego feedu zajmuje minuty,
+a między publikacjami zmienia się w nim niewiele. Bez cache'a każdy przebieg
+liczyłby od zera to samo.
 
 Kluczem jest skrót *współrzędnych* sekwencji, a nie identyfikatorów
 przystanków: gdy lista peronów PLK poprawi położenie peronu, unieważnione
 zostaną dokładnie te kształty, które przez ten peron prowadzą, i nic poza nimi.
 
-Pamiętamy też **nieudane** próby. 39 sekwencji POLREGIO nie da się zroutować,
-bo wychodzą poza wycinek OSM (Berlin, Cottbus, Bützow) — a każda taka próba to
-kaskada trzech zapytań, z których każde czeka na timeout. Bez cache'a
-negatywnego kosztowały minutę na przebieg, w kółko, przez cały rok. Wpis
+Pamiętamy też **nieudane** próby. Sekwencji, która wychodzi poza wycinek OSM,
+nie da się zroutować — a każda taka próba to kaskada trzech zapytań, z których
+każde czeka na timeout. Bez cache'a negatywnego powtarzałoby się to przy
+każdym przebiegu. Wpis
 o porażce przeterminowuje się po ``RETRY_AFTER_DAYS``, więc podmiana wycinka
 OSM na szerszy sama się w końcu odbije w wyniku.
 

@@ -1,8 +1,9 @@
 """Obszar, w którym umiemy policzyć geometrię przejazdu.
 
-Silniki routujące znają tylko to, co jest w podanym wycinku OSM. Dla POLREGIO
-jest to Polska, a feed sięga do Berlina, Cottbus i Bützow — i tam router nie
-odmawia, tylko **przyczepia przystanek do najbliższego miejsca, które zna**.
+Silniki routujące znają tylko to, co jest w podanym wycinku OSM, zwykle
+w Polsce. Feed, którego kursy sięgają za granicę, prosi o przystanki spoza
+wycinka — i tam router nie odmawia, tylko **przyczepia przystanek do
+najbliższego miejsca, które zna**.
 Efekt jest gorszy niż brak kształtu: linia urywa się na granicy albo skacze
 w losowe miejsce, a nic w danych nie mówi, że to nieprawda.
 

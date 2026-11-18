@@ -1,7 +1,7 @@
 """Testy dopasowywania współrzędnych peronów.
 
 Dwie rzeczy, w których łatwo o cichy błąd: translacja oznaczenia peronu
-(POLREGIO podaje rzymskie, lista PLK arabskie) i normalizacja nazwy stacji
+(przewoźnicy podają rzymskie, lista PLK arabskie) i normalizacja nazwy stacji
 (klucze w liście PLK gubią wielkie litery diakrytyczne, więc nie wolno ich
 użyć do wyszukiwania).
 """
@@ -52,7 +52,7 @@ class TestOznaczeniePeronu:
             ("II", ("2", None)),
             ("IIIa/5", ("3a", "5")),
             ("Ia/7K", ("1a", "7")),  # litera po numerze toru to dopisek techniczny
-            # Peron bywa podany od razu arabski: POLREGIO pisze rzymskimi, ale
+            # Peron bywa podany od razu arabski: zwykle pisze się rzymskimi, ale
             # Koleje Małopolskie mają „peron 5". Lista PLK trzyma arabskie,
             # więc taki zapis wchodzi bez konwersji.
             ("5", ("5", None)),
@@ -101,7 +101,7 @@ class TestSzukanie:
         assert found.quality == "track"
 
     def test_bez_toru_bierze_srodek_peronu(self):
-        """POLREGIO podaje czasem sam peron (`II`). Środek peronu jest wciąż
+        """Przewoźnik podaje czasem sam peron (`II`). Środek peronu jest wciąż
         o rząd wielkości lepszy niż punkt stacji."""
         listing = index(
             entry("Stargard", "2", "1", 15.0, 53.0),

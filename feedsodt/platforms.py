@@ -1,8 +1,8 @@
 """Współrzędne peronów kolejowych z OSM.
 
 Przewoźnicy podają w GTFS jeden punkt na stację i przypisują go wszystkim
-peronom. W feedzie POLREGIO peron I/1, peron II/2 i sama stacja mają
-identyczne ``stop_lat``/``stop_lon`` — pasażer na mapie widzi trzy pinezki
+peronom. Peron I/1, peron II/2 i sama stacja mają wtedy identyczne
+``stop_lat``/``stop_lon`` — pasażer na mapie widzi trzy pinezki
 w jednym miejscu, a planer nie potrafi pokazać, na który peron ma iść.
 
 Źródłem prawdziwych współrzędnych jest lista peronów PLK zbudowana z OSM:
@@ -17,11 +17,11 @@ Dwie rzeczy, które trzeba w tym pliku obejść:
 *małych* polskich liter na ASCII i dopiero potem lowercase, więc wielkie
 litery diakrytyczne wypadają: ``Bardo Śląskie`` → ``bardo-laskie``,
 ``Bydgoszcz Łęgnowo`` → ``bydgoszcz-egnowo``. Dopasowanie po kluczu gubi
-239 stacji. Dopasowujemy więc po ``station_name`` ze złożeniem wszystkich
-diakrytyków — wtedy z 2220 stacji POLREGIO trafia 2050.
+takie stacje. Dopasowujemy więc po ``station_name`` ze złożeniem wszystkich
+diakrytyków.
 
 **Numeracja peronów jest inna niż w GTFS.** Lista podaje peron arabski
-(``"2"``), a POLREGIO rzymski, razem z torem: ``platform_code = "II/3"``
+(``"2"``), a przewoźnicy rzymski, razem z torem: ``platform_code = "II/3"``
 znaczy peron II, tor 3. Stąd translacja przed wyszukaniem.
 """
 
@@ -60,7 +60,7 @@ _ROMAN = {"I": 1, "V": 5, "X": 10}
 #: Litera po numerze peronu jest częścią jego oznaczenia (peron 1a to nie
 #: peron 1); litera po numerze toru to zwykle dopisek techniczny i ją pomijamy.
 #:
-#: Peron bywa podany od razu arabski — POLREGIO pisze rzymskimi, ale Koleje
+#: Peron bywa podany od razu arabski — zwykle pisze się go rzymskimi, ale Koleje
 #: Małopolskie mają w jednym miejscu „peron 5". Lista PLK i tak trzyma arabskie,
 #: więc taki zapis wchodzi bez konwersji.
 _PLATFORM_CODE = re.compile(r"^(?:([IVX]+)|(\d+))([a-z]?)(?:/(\d+)[a-zA-Z]*)?$")
@@ -77,7 +77,7 @@ class Location:
     lat: float
     lon: float
     #: ``track`` — trafiony peron i tor; ``platform`` — sam peron (średnia
-    #: z jego torów, bo w oznaczeniu POLREGIO toru nie było albo się nie zgadzał).
+    #: z jego torów, bo w oznaczeniu przewoźnika toru nie było albo się nie zgadzał).
     quality: str
 
 
@@ -242,7 +242,7 @@ class PlatformIndex:
             if exact:
                 return _centroid(exact, "track")
 
-        # Tor się nie zgadza albo POLREGIO go nie podał. Środek peronu jest
+        # Tor się nie zgadza albo przewoźnik go nie podał. Środek peronu jest
         # wciąż o rząd wielkości lepszy niż punkt stacji — perony bywają
         # oddalone od budynku dworca o setki metrów.
         return _centroid(on_platform, "platform")

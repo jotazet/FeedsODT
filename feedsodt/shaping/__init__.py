@@ -19,14 +19,14 @@ naszej regule „bez zmian = bez zapisu" oznaczałoby to codzienną republikacj�
 i ciągłe `200 OK` zamiast `304` u konsumentów. Tutaj ``shape_id`` jest skrótem
 sekwencji przystanków, a wiersze idą w kolejności posortowanej.
 
-**Geometria jest cache'owana między przebiegami.** Feed POLREGIO obowiązuje
-do grudnia i między dobami zmienia się w nim niewiele, a routowanie 4,5 tys.
-sekwencji od zera to kilkadziesiąt minut. Klucz cache'a to współrzędne
+**Geometria jest cache'owana między przebiegami.** Feed między dobami zmienia
+się niewiele, a routowanie wszystkich sekwencji od zera to minuty. Klucz
+cache'a to współrzędne
 sekwencji, więc poprawka współrzędnych peronu unieważnia dokładnie te kształty,
 których dotyczy.
 
 **Zapis jest strumieniowy.** ``main.py`` przepuszcza feed przez gtfs_kit
-i pandas, co przy 42 MB ``stop_times.txt`` gubi zarówno pamięć, jak i stałe
+i pandas, co przy dużym ``stop_times.txt`` gubi zarówno pamięć, jak i stałe
 daty wpisów ZIP, na których stoi determinizm.
 """
 
@@ -91,9 +91,9 @@ GOOD_COVERAGE = 0.95
 #:
 #: Router nigdy nie mówi „nie wiem" — gdy nie potrafi dopasować sekwencji,
 #: zwraca *jakąś* linię, bywa że kilkanaście kilometrów obok. Na zdrowych
-#: danych POLREGIO 99% przystanków leży w granicach 41 m od linii (peron stoi
-#: obok osi toru), a wynik zepsuty odstaje o kilometry — próg 500 m rozdziela
-#: te dwa światy z dużym zapasem w obie strony.
+#: danych przystanek leży kilkadziesiąt metrów od linii (peron stoi obok osi
+#: toru), a wynik zepsuty odstaje o kilometry — próg 500 m rozdziela te dwa
+#: światy z dużym zapasem w obie strony.
 MAX_STOP_DEVIATION_M = 500
 
 SHAPE_COLUMNS = ("shape_id", "shape_pt_lat", "shape_pt_lon", "shape_pt_sequence")
@@ -214,7 +214,7 @@ def shape(source: Path, dest: Path, cfg: ShapeConfig) -> ShapeStats:
 
         # Cache jest otwarty przez cały krok, bo służy nie tylko do omijania
         # pracy: geometria wraca z niego pojedynczo przy zapisie, zamiast
-        # czekać w pamięci. Przy POLREGIO to różnica 156 MB.
+        # czekać w pamięci. Przy dużym feedzie to setki megabajtów różnicy.
         with ShapeCache.open(cfg.cache_path) as cache:
             keys = _fetch_all(sequences, cfg, stats, cache)
 
@@ -371,8 +371,8 @@ def _sequences(
 
     # Dwie równoległe listy zamiast listy krotek, a identyfikatory przystanków
     # sprowadzone do jednego obiektu na przystanek: czytnik CSV tworzy nowy
-    # obiekt tekstowy dla każdego z 704 tys. wierszy POLREGIO, choć różnych
-    # przystanków jest 4245. Bez tego sama ta struktura zajmowała 99 MB.
+    # obiekt tekstowy dla każdego wiersza ``stop_times.txt``, choć różnych
+    # przystanków jest o rzędy wielkości mniej.
     canonical = {stop_id: stop_id for stop_id in coords}
     ordered: dict[str, list[str]] = defaultdict(list)
     positions: dict[str, list[int]] = defaultdict(list)

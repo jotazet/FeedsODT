@@ -56,6 +56,27 @@ class Index:
     def put(self, name: str, entry: dict[str, Any]) -> None:
         self.data["feeds"][name] = entry
 
+    def prune(self, keep: set[str], output_dir: Path) -> list[str]:
+        """Usuwa wpisy i opublikowane pliki źródeł, których nie ma już w konfiguracji.
+
+        Bez tego plik usuniętego źródła zostaje pod stałym adresem z zamrożoną
+        treścią, a jego wpis (z ``covers_today``) nigdy się nie aktualizuje: odbiorca
+        dostaje stary rozkład bez żadnego sygnału. 404 mówi prawdę. Wyłączone źródło
+        (``enabled = false``) zostaje w konfiguracji, więc tego nie dotyczy.
+        """
+        removed = sorted(set(self.data["feeds"]) - keep)
+        for name in removed:
+            output = str(self.data["feeds"].pop(name).get("output") or "")
+            # Tylko nazwa pliku w katalogu wyjściowym, nigdy ścieżka z index.json.
+            if output and Path(output).name == output:
+                (output_dir / output).unlink(missing_ok=True)
+            log.warning(
+                "[%s] źródła nie ma w konfiguracji: usunięto %s i wpis z indeksu",
+                name,
+                output or "(brak pliku)",
+            )
+        return removed
+
     def save(self, now: datetime) -> None:
         self.data["generated_at"] = now.isoformat(timespec="seconds")
         self.path.parent.mkdir(parents=True, exist_ok=True)
