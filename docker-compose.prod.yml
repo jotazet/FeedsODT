@@ -18,6 +18,11 @@ services:
     # ustala też, które źródła i w jakich slotach idą. Zmiana źródeł = nowe wydanie.
     volumes: !override
       - ./gtfs:/data/gtfs
+    environment:
+      # Po wydaniu bez pełnego przebiegu: w dzień silniki routujące stoją, więc źródła
+      # z `shape` tylko by zawodziły, a przebieg trzymałby blokadę, przez którą
+      # release.sh odrzuca następne wydanie. Pliki zostają, sloty idą jak zwykle.
+      FEEDSODT_RUN_ON_START: ${FEEDSODT_RUN_ON_START:-false}
     # Test i odstępy z HEALTHCHECK obrazu. Bez start_interval pierwsza próba
     # przychodzi po 5 min (interval), a tyle czekałoby `up --wait` w release.sh.
     healthcheck:

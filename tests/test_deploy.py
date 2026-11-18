@@ -80,11 +80,11 @@ def test_release_variables_reach_the_fetcher():
 
 
 def test_deploy_files_exist():
-    script = (ROOT / "scripts" / "deploy" / "feedsodt-deploy").read_text()
+    script = (ROOT / "scripts" / "deploy" / "release.sh").read_text()
     files = re.search(r'^DEPLOY_FILES="([^"]*)"', script, re.M).group(1).split()
     assert files
     for path in files:
         assert (ROOT / path).exists(), path
-        # shaper/cache/ trzyma grafy routingu na serwerze; feedsodt-deploy kasuje
-        # każdą ścieżkę z listy przed skopiowaniem nowej.
+        # shaper/cache/ trzyma grafy routingu na serwerze; release.sh kasuje każdą
+        # ścieżkę z listy przed przeniesieniem nowej.
         assert path != "shaper" and not path.startswith(("gtfs", "osm", "shaper/cache")), path

@@ -81,6 +81,21 @@ class TestIndex:
     def test_nieczytelny_wpis_zwraca_pusty_slownik(self, tmp_path):
         assert Index.load(tmp_path).entry("nieistniejace") == {}
 
+    def test_zrodlo_usuniete_z_konfiguracji_znika_z_indeksu_i_dysku(self, tmp_path):
+        """Inaczej zamrożony plik zostaje pod stałym adresem bez żadnego sygnału."""
+        (tmp_path / "polregio-gtfs.zip").write_bytes(b"x")
+        (tmp_path / "ska-gtfs.zip").write_bytes(b"x")
+        index = Index.load(tmp_path)
+        index.put("polregio", {"output": "polregio-gtfs.zip"})
+        index.put("ska", {"output": "ska-gtfs.zip"})
+        index.put("dziwny", {"output": "../poza.zip"})
+
+        assert index.prune({"ska"}, tmp_path) == ["dziwny", "polregio"]
+
+        assert set(index.data["feeds"]) == {"ska"}
+        assert not (tmp_path / "polregio-gtfs.zip").exists()
+        assert (tmp_path / "ska-gtfs.zip").exists()
+
 
 class TestBlokada:
     def test_drugi_przebieg_jest_odrzucany(self, tmp_path):

@@ -43,3 +43,27 @@ def test_po_wyczerpaniu_oczekiwan_slot_jest_pomijany(monkeypatch):
     runner._scheduled_run(object(), scheduler, at="00:50", waits=runner.LOCK_MAX_WAITS)
 
     assert scheduler.jobs == []
+
+
+def test_ponowienia_roznych_zrodel_nie_nadpisuja_sie(monkeypatch):
+    """Dwa ponowienia z tym samym numerem próby (at=None) muszą mieć różne id:
+    scheduler zakłada zadania z replace_existing=True."""
+
+    class App:
+        retry_minutes = [15, 30, 60]
+
+    def failed(_app, only, _at):
+        return [runner.SourceResult(name, "failed") for name in only]
+
+    monkeypatch.setattr(runner, "load_config", lambda: App())
+    monkeypatch.setattr(runner, "run_all", failed)
+    scheduler = Scheduler()
+
+    runner._scheduled_run(object(), scheduler, only={"wroclaw"}, attempt=1)
+    runner._scheduled_run(object(), scheduler, only={"gzm-extend"}, attempt=1)
+    monkeypatch.setattr(runner, "run_all", _busy)
+    runner._scheduled_run(object(), scheduler, only={"wroclaw"}, attempt=1)
+    runner._scheduled_run(object(), scheduler, only={"gzm-extend"}, attempt=1)
+
+    ids = [job["id"] for job in scheduler.jobs]
+    assert len(set(ids)) == 4, ids

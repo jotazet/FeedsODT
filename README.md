@@ -421,7 +421,7 @@ docker compose logs -f realtime          # statystyki dopasowania co przebieg
 | `FEEDSODT_INTERVAL_DAYS` | `1` | co ile dni wraca każde źródło (1 = codziennie) |
 | `FEEDSODT_RUN_AT` | `00:30` | godzina dla źródeł bez własnego `run_at` |
 | `FEEDSODT_RETRY_MINUTES` | `15,30,60` | odstępy ponawiania po błędzie; puste = bez ponawiania |
-| `FEEDSODT_RUN_ON_START` | `true` | przebieg zaraz po starcie kontenera |
+| `FEEDSODT_RUN_ON_START` | `true` (produkcja: `false`) | przebieg zaraz po starcie kontenera |
 | `FEEDSODT_OUTPUT_DIR` | `/data/gtfs` | katalog wyjściowy |
 | `FEEDSODT_SOURCES` | `/app/config/sources.toml` | plik konfiguracji źródeł |
 | `FEEDSODT_PORT` | `8090` | port nginx-a na hoście |

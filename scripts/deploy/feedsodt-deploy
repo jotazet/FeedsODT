@@ -6,11 +6,11 @@
 #
 #   feedsodt-deploy vX.Y.Z < production.env
 #
-# Pyta GitHuba o commit taga, odmawia, jeśli nie leży na main, pobiera z tego commitu pliki
-# Compose, konfigurację nginx-a i silników oraz skrypty wdrożenia do katalogu wdrożenia
-# i oddaje sprawę scripts/deploy/release.sh tego wydania, który uruchamia obrazy zbudowane
-# przez CI dla taga. .env ze standardowego wejścia jest łączony z plikiem hosta: wejście
-# może ustawić tylko ustawienia fetchera, plik hosta resztę i wygrywa
+# Pyta GitHuba o commit taga, odmawia, jeśli nie leży na main, rozpakowuje ten commit do
+# katalogu tymczasowego i oddaje sprawę jego scripts/deploy/release.sh, który dopiero po
+# swoich sprawdzeniach przenosi pliki wydania do katalogu wdrożenia i uruchamia obrazy
+# zbudowane przez CI dla taga. .env ze standardowego wejścia jest łączony z plikiem hosta:
+# wejście może ustawić tylko ustawienia fetchera, plik hosta resztę i wygrywa
 # (scripts/deploy/envfile.py, merge). Na serwerze nie ma checkoutu. Celowo krótki, żeby
 # rzadko trzeba go było instalować od nowa; kroki wdrożenia są w release.sh.
 #
@@ -22,10 +22,6 @@ REPOSITORY=jotazet/FeedsODT
 API="https://api.github.com/repos/$REPOSITORY"
 # Porty, ścieżki, limity, COMPOSE_*: pisze root, nigdy wydanie.
 HOST_ENV=/etc/odt/feedsodt-host.env
-# Czego produkcja potrzebuje z repozytorium; reszta jest w obrazach. Bez całego shaper/:
-# w shaper/cache/ leżą zaimportowane grafy routingu, których nie wolno skasować.
-DEPLOY_FILES="docker-compose.yml docker-compose.prod.yml .env.example nginx scripts/deploy
-shaper/engines.sh shaper/engines.crontab shaper/graphhopper shaper/openrailrouting/config.yml"
 
 tag="${1:-}"
 if ! printf '%s\n' "$tag" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; then
@@ -65,16 +61,13 @@ curl -fsS --retry 3 -o "$work/envfile.py" \
 python3 -I "$work/envfile.py" merge "$work/release.env" "$HOST_ENV" "$work/production.env"
 
 # Pliki wydania po commicie: przesunięcie taga po sprawdzeniu wyżej niczego nie zmienia.
+# Na razie poza katalogiem wdrożenia: release.sh przeniesie je dopiero, gdy wydanie ruszy.
 mkdir "$work/src"
 curl -fsSL --retry 3 "https://codeload.github.com/$REPOSITORY/tar.gz/$commit" \
     | tar -xz -C "$work/src" --strip-components=1
-for path in $DEPLOY_FILES; do
-    mkdir -p "$FEEDSODT_DIR/$(dirname "$path")"
-    rm -rf "${FEEDSODT_DIR:?}/$path"
-    cp -R "$work/src/$path" "$FEEDSODT_DIR/$path"
-done
 
 # release.sh zapisuje działającą wersję jako FEEDSODT_VERSION w .env.
 running="$(sed -n 's/^FEEDSODT_VERSION=//p' "$FEEDSODT_DIR/.env" 2>/dev/null | tail -n 1)"
 echo "feedsodt-deploy: ${running:-brak} -> $tag ($commit)"
-sh "$FEEDSODT_DIR/scripts/deploy/release.sh" "$tag" "$work/production.env"
+FEEDSODT_DIR="$FEEDSODT_DIR" sh "$work/src/scripts/deploy/release.sh" \
+    "$tag" "$work/production.env" "$work/src"
