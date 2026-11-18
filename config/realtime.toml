@@ -1,0 +1,59 @@
+# GTFS-RT kolei: `python -m feedsodt realtime` (usługa `realtime` w docker-compose).
+#
+# Oba pliki wyjściowe są kluczowane krajowym GTFS kolejowym mkuran.pl: trip_id
+# i start_date pochodzą z polish_trains.zip, nie z feedów przewoźników. Konsument
+# łączy je z tym statycznym plikiem.
+#
+# Wczytywany przy starcie usługi; zmiana wymaga restartu (na produkcji: wydania).
+
+# O której (Europe/Warsaw) raz dziennie pobierać na nowo statyczne GTFS (krajowy
+# i przewoźników). mkuran.pl publikuje nową wersję polish_trains.zip ok. 02:45, a oba
+# pliki RT mają się z nią zgadzać (trip_id, start_date), więc zaraz po niej.
+static_refresh_at = "02:50"
+
+[national]
+# Krajowy GTFS kolejowy (Mikołaj Kuranowski, PolishTrainsGTFS).
+static = "https://mkuran.pl/gtfs/polish_trains.zip"
+# Zapasowe TripUpdates (gtfs.kasznia.net, CC BY 4.0): do przewidywanych pozycji przy
+# dopasowaniu, gdy brak klucza API PLK albo własny TripUpdates jest starszy niż 10 min.
+# Nie jest publikowany dalej.
+rt = "https://gtfs.kasznia.net/rt/polish-trains.pb"
+
+# Źródła pozycji. `agency` to agency_id w polish_trains.zip. Z każdego feedu z `rt`
+# brane są encje vehicle (pozycje) i trip_update (czasy do dopasowania zapasowego).
+# `static` + `train_no_field`: GTFS przewoźnika z tymi samymi trip_id co w jego RT,
+# z którego bierzemy numer pociągu; bez niego dopasowanie idzie po czasach i pozycji.
+
+[[sources]]
+name = "KD"
+agency = "KD"
+# Login i hasło kd_sample są publiczne, więc mogą stać w adresie.
+static = "https://kd_sample:Hm5mEuPC%3F1h7@kd.kiedyprzyjedzie.pl/gtfs/kd_sample/google_transit.zip"
+train_no_field = "block_id"
+rt = ["https://api.odt.org.pl/feed/rt/4/trip_update/"]
+
+[[sources]]
+name = "LKA"
+agency = "LKA"
+static = "https://kolej-lka.pl/pliki/pn0e6eg45qcl4hd5/gtfs-2025-2026/zip/"
+train_no_field = "trip_short_name"
+rt = [
+    "https://api.odt.org.pl/feed/rt/3/vehicle_position/",
+    "https://api.odt.org.pl/feed/rt/3/trip_update/",
+]
+
+[[sources]]
+name = "KML"
+agency = "KML"
+# trip_id z RT nie występują w kml-ska-gtfs.zip -> dopasowanie zapasowe (czasy TU +
+# pozycja). Ten endpoint ma też encje vehicle (pozycje pociągów SKA).
+rt = ["https://api.odt.org.pl/feed/rt/2/trip_update/"]
+
+[[sources]]
+name = "KS"
+agency = "KS"
+static = "https://api.odt.org.pl/feed/57/rhf84y9a40fbqojyy6r3"
+train_no_field = "trip_short_name"
+# Źródło podaje tylko TripUpdate (bez pozycji) -> 0 pojazdów, dopóki nie pojawią się
+# VehiclePositions.
+rt = ["https://api.odt.org.pl/feed/rt/20/trip_update/"]

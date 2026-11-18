@@ -25,6 +25,36 @@ services:
       # podmienia, a nie modyfikuje w miejscu) nie dotarłaby do środka.
       - ./config:/app/config:ro
 
+  # GTFS-RT kolei: nowe pliki .pb w gtfs/rt/ co FEEDSODT_RT_*_INTERVAL sekund
+  # (config/realtime.toml, README „Realtime kolei"). Osobny kontener, bo przebieg
+  # statyczny potrafi trzymać fetchera kilkadziesiąt minut.
+  realtime:
+    build: .
+    container_name: feedsodt-realtime
+    restart: unless-stopped
+    command: ["realtime"]
+    environment:
+      TZ: Europe/Warsaw
+      FEEDSODT_RT_TU_INTERVAL: ${FEEDSODT_RT_TU_INTERVAL:-60}
+      FEEDSODT_RT_VP_INTERVAL: ${FEEDSODT_RT_VP_INTERVAL:-30}
+      # Klucz API PKP PLK; bez niego nie ma TripUpdates (pozycje zostają).
+      PKP_PLK_APIKEY: ${PKP_PLK_APIKEY:-}
+    volumes:
+      - ./gtfs:/data/gtfs
+      - ./config:/app/config:ro
+    # Zdrowy = plik pozycji z ostatnich 10 minut, a z kluczem API także TripUpdates
+    # z ostatnich 40 (feedsodt/realtime/loop.py, healthcheck). Pierwszy przebieg pobiera
+    # i wczytuje krajowy GTFS (26 MB), stąd start_period.
+    healthcheck:
+      test: ["CMD", "python", "-c", "from feedsodt.realtime.loop import healthcheck; healthcheck()"]
+      interval: 1m
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+      start_interval: 10s
+    # Zmierzone 18.11.2026: ok. 420 MB po wczytaniu krajowego GTFS i odpowiedzi API.
+    mem_limit: ${REALTIME_MEM_LIMIT:-800m}
+
   web:
     image: nginx:alpine
     container_name: feedsodt-web

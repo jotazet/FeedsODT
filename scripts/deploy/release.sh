@@ -1,6 +1,6 @@
 #!/bin/sh
 # Wdraża wydanie: obrazy taga (to jeszcze niczego nie zmienia), pliki wydania w katalogu
-# wdrożenia, nowy .env, nowe kontenery fetchera i nginx-a, aż oba działają. Każdy błąd
+# wdrożenia, nowy .env, nowe kontenery fetchera, realtime i nginx-a, aż działają. Każdy błąd
 # zatrzymuje go w tym miejscu. feedsodt-deploy uruchamia go z rozpakowanego commitu taga
 # (docs/wdrozenie.md):
 #

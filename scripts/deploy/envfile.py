@@ -16,9 +16,9 @@ feedsodt-deploy), które wszystkie muszą być w RELEASE_KEYS, a potem każdy kl
 jest odrzucany, nie przycinany. Plik hosta trzyma to, co decyduje, co i jak działa na
 maszynie: COMPOSE_*, porty, ścieżki, limity pamięci i CPU silników.
 
-Ten sam podział co w backendzie ODT (jego scripts/deploy/envfile.py), uproszczony: FeedsODT
-nie ma dziś ani sekretów, ani ustawień, bez których kontenery wstałyby z wartościami
-deweloperskimi (domyślne w docker-compose.yml są zarazem produkcyjne).
+Ten sam podział co w backendzie ODT (jego scripts/deploy/envfile.py), uproszczony: żaden
+sekret ani zmienna nie są wymagane (domyślne w docker-compose.yml są zarazem produkcyjne,
+a bez PKP_PLK_APIKEY nie powstaje tylko TripUpdates kolei).
 """
 
 import json
@@ -27,7 +27,7 @@ import sys
 
 # Sekrety środowiska; każdy staje się linią .env pod tą samą nazwą. Zadanie deploy
 # w .github/workflows/ci.yml podaje każdy z nazwy: nowy sekret zmienia oba miejsca.
-SECRETS = ()
+SECRETS = ("PKP_PLK_APIKEY",)
 # Co wydanie może ustawić poza sekretami: ustawienia fetchera, które nie zmieniają,
 # co i jak działa na maszynie. Cała reszta należy do pliku hosta.
 RELEASE_VARIABLES = (
@@ -37,6 +37,8 @@ RELEASE_VARIABLES = (
     "FEEDSODT_RUN_ON_START",
     "FEEDSODT_SHAPE_WORKERS",
     "FEEDSODT_SHAPE_GPS_ACCURACY",
+    "FEEDSODT_RT_TU_INTERVAL",
+    "FEEDSODT_RT_VP_INTERVAL",
 )
 RELEASE_KEYS = frozenset(RELEASE_VARIABLES + SECRETS)
 # Bez COMPOSE_FILE z nakładką produkcyjną Compose budowałby obrazy na serwerze

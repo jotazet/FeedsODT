@@ -80,14 +80,19 @@ stąd kopie feedów co noc.
 - **Silniki routujące** działają tylko w nocnym oknie (`shaper/engines.crontab`,
   00:45-07:30); `tests/test_engines_window.py` pilnuje, żeby sloty z `shape` się w nim
   mieściły.
+- **Realtime kolei** (`python -m feedsodt realtime`, usługa `realtime`): co kilkadziesiąt
+  sekund `gtfs/rt/polish-trains-{trip-updates,vehicle-positions}.pb` na krajowym GTFS
+  mkuran.pl (`feedsodt/realtime/`, `config/realtime.toml`). Osobny proces, bez blokady
+  przebiegu statycznego.
 - **nginx** (`nginx/default.conf`) serwuje `gtfs/` tylko do odczytu; to jedyna usługa
   widoczna z zewnątrz.
 
 ## Mapa repozytorium
 
 ```
-feedsodt/                 kod: runner, config, merge, publish, sources/, transform/, shaping/
+feedsodt/                 kod: runner, config, merge, publish, sources/, transform/, shaping/, realtime/
 config/sources.toml       źródła, ich sloty i przebudowa
+config/realtime.toml      źródła GTFS-RT kolei
 config/colors/            tabele barw linii
 shaper/                   silniki routujące: konfiguracja, łatki, okno nocne
 nginx/                    serwowanie feedów

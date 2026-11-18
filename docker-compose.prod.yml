@@ -29,6 +29,13 @@ services:
       start_period: 10m
       start_interval: 10s
 
+  realtime:
+    image: ghcr.io/jotazet/feedsodt:${FEEDSODT_VERSION:?ustaw FEEDSODT_VERSION (robi to release.sh)}
+    build: !reset null
+    # config/realtime.toml z obrazu, jak sources.toml fetchera.
+    volumes: !override
+      - ./gtfs:/data/gtfs
+
   railrouting:
     image: ghcr.io/jotazet/feedsodt-railrouting:${FEEDSODT_VERSION:?ustaw FEEDSODT_VERSION (robi to release.sh)}
     build: !reset null

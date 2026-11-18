@@ -30,9 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "command",
-        choices=("run-once", "daemon", "list"),
+        choices=("run-once", "daemon", "list", "realtime"),
         help="run-once: jeden przebieg po wszystkich źródłach; daemon: harmonogram; "
-        "list: pokaż skonfigurowane źródła",
+        "list: pokaż skonfigurowane źródła; realtime: GTFS-RT kolei co kilkadziesiąt sekund",
     )
     parser.add_argument(
         "--only",
@@ -81,6 +81,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "daemon":
         run_daemon(app)
+        return 0
+
+    if args.command == "realtime":
+        # Import tutaj: protobuf nie jest potrzebny pozostałym komendom.
+        from .realtime.loop import run_realtime
+
+        try:
+            run_realtime(app)
+        except ConfigError as exc:
+            print(f"błąd konfiguracji: {exc}", file=sys.stderr)
+            return 2
         return 0
 
     only = {name.strip() for name in args.only.split(",") if name.strip()} or None

@@ -153,6 +153,9 @@ class AppConfig:
     shape_gps_accuracy: int = 50
     #: Odstępy (w minutach) kolejnych prób dla źródeł, które zawiodły.
     retry_minutes: tuple[int, ...] = (15, 30, 60)
+    #: Co ile sekund nowy TripUpdates i VehiclePositions kolei (`feedsodt realtime`).
+    rt_tu_interval: int = 60
+    rt_vp_interval: int = 30
 
     def cycle_day(self, today: date) -> int:
         """Który to dzień cyklu — liczony od stałej daty, nie od startu."""
@@ -309,4 +312,42 @@ def load_config() -> AppConfig:
         shape_workers=_env_int("FEEDSODT_SHAPE_WORKERS", 8),
         shape_gps_accuracy=_env_int("FEEDSODT_SHAPE_GPS_ACCURACY", 50),
         retry_minutes=_env_minutes("FEEDSODT_RETRY_MINUTES", (15, 30, 60)),
+        rt_tu_interval=_env_int("FEEDSODT_RT_TU_INTERVAL", 60),
+        rt_vp_interval=_env_int("FEEDSODT_RT_VP_INTERVAL", 30),
     )
+
+
+def load_realtime(path: Path) -> dict:
+    """config/realtime.toml: krajowy GTFS kolejowy i feedy RT przewoźników.
+
+    Zostaje słownikiem w kształcie sources.json z prototypu, bo tak czyta go
+    feedsodt/realtime/vehicles.py; tu tylko sprawdzamy, czego tam zabraknąć nie może.
+    """
+    if not path.is_file():
+        raise ConfigError(f"nie znaleziono pliku konfiguracji: {path}")
+    with path.open("rb") as handle:
+        try:
+            data = tomllib.load(handle)
+        except tomllib.TOMLDecodeError as exc:
+            raise ConfigError(f"{path.name}: {exc}") from None
+
+    national = data.get("national")
+    if not isinstance(national, dict) or not national.get("static"):
+        raise ConfigError(f"{path.name}: brak [national] ze `static`")
+    refresh_at = data.setdefault("static_refresh_at", "02:50")
+    if not isinstance(refresh_at, str) or not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", refresh_at):
+        raise ConfigError(f"{path.name}: static_refresh_at={refresh_at!r}, oczekiwano HH:MM")
+    sources = data.get("sources") or []
+    names = set()
+    for index, source in enumerate(sources, start=1):
+        for key in ("name", "agency"):
+            if not isinstance(source.get(key), str) or not source[key]:
+                raise ConfigError(f"{path.name}: [[sources]] nr {index} bez `{key}`")
+        rt_urls = source.get("rt")
+        if not isinstance(rt_urls, list) or not rt_urls:
+            raise ConfigError(f"{path.name}: {source['name']} bez listy `rt`")
+        if source["name"] in names:
+            raise ConfigError(f"{path.name}: źródło {source['name']} powtórzone")
+        names.add(source["name"])
+    data["sources"] = sources
+    return data

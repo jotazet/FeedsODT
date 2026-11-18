@@ -30,7 +30,7 @@ flowchart LR
    były na miejscu przed nocą). Do tej chwili katalog wdrożenia jest nietknięty. Potem
    kopiuje pliki Compose, `nginx/`, konfigurację silników i `scripts/deploy/` obok
    (`.release-new/`) i dopiero całą kopię podmienia na miejscu, instaluje nowy `.env`,
-   odtwarza `fetcher` (`up -d --wait`) i czeka do 10 minut, aż będzie zdrowy. `web`
+   odtwarza `fetcher` i `realtime` (`up -d --wait`) i czeka do 10 minut, aż będą zdrowe. `web`
    odtwarza tylko przy zmianie `nginx/default.conf`: montuje ten plik, więc sam by go nie
    przeczytał. Na koniec usuwa z hosta obrazy wszystkich poza 3 najnowszymi wydaniami
    (rejestr trzyma każde). Każdy błąd zatrzymuje go i zadanie robi się czerwone.

@@ -1,6 +1,6 @@
 ---
 name: gtfs-feeds
-description: Domena FeedsODT - źródła GTFS i ich resolvery, wybór i scalanie paczek, przebudowa (barwy, perony), geometria przejazdu, walidacja, publikacja pod stałym adresem, index.json, harmonogram slotów i nocne okno silników, zgodność z GTFS-RT i planerem ODT. Używaj przy każdej zmianie config/sources.toml, feedsodt/ (sources, merge, transform, shaping, publish, runner) i przy każdym twierdzeniu o tym, jak działa GTFS, konkretne źródło albo katalog i planer ODT.
+description: Domena FeedsODT - GTFS-RT kolei (TripUpdates z API PLK, pozycje przewoźników na krajowym GTFS mkuran), źródła GTFS i ich resolvery, wybór i scalanie paczek, przebudowa (barwy, perony), geometria przejazdu, walidacja, publikacja pod stałym adresem, index.json, harmonogram slotów i nocne okno silników, zgodność z GTFS-RT i planerem ODT. Używaj przy każdej zmianie config/sources.toml, feedsodt/ (sources, merge, transform, shaping, publish, runner) i przy każdym twierdzeniu o tym, jak działa GTFS, konkretne źródło albo katalog i planer ODT.
 ---
 
 # Feedy GTFS w FeedsODT
@@ -56,6 +56,10 @@ tylko kursy znikają z wyszukiwarek albo tracą pozycje na żywo.
 - **Kształtowanie mieści się w nocnym oknie silników** (00:45-07:30 z ponowieniami);
   pilnuje tego `tests/test_engines_window.py`.
 - **Silniki routujące nie są publiczne:** porty tylko na `127.0.0.1`.
+- **GTFS-RT kolei jest kluczowany krajowym GTFS mkuran.pl** (`polish_trains.zip`):
+  `trip_id` i `start_date` w `gtfs/rt/*.pb` pochodzą stamtąd, nie z feedów przewoźników.
+  Pozycja trafia do pliku tylko przy jednoznacznym dopasowaniu do kursu; nie interpolujemy
+  pozycji z rozkładu, bo GTFS-RT nie ma pola, które odróżniłoby je od GPS.
 
 ## Przypadki do testów
 
