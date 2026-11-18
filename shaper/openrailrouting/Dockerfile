@@ -2,7 +2,7 @@
 # GraphHopper fork by Geofabrik that supports routing on railway tracks
 # (train / tram / light_rail), used for GTFS route_type 0 (tram) and 2 (rail).
 
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM maven:3.9-eclipse-temurin-26 AS build
 
 ARG ORR_VERSION=v1.1
 
