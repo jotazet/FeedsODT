@@ -28,7 +28,7 @@ RUN mkdir /out \
     && { cp /src/target/railway_routing-*-jar-with-dependencies.jar /out/railway_routing.jar 2>/dev/null \
          || cp "$(ls /src/target/railway_routing-*.jar | grep -v sources | head -n 1)" /out/railway_routing.jar; }
 
-FROM eclipse-temurin:17-jre
+FROM eclipse-temurin:24-jre
 
 WORKDIR /app
 COPY --from=build /out/railway_routing.jar /app/railway_routing.jar
