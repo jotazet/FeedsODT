@@ -23,15 +23,17 @@ flowchart LR
 2. Uruchamia przez sudo `/usr/local/sbin/feedsodt-deploy` jako `feedsodt`, właściciel
    katalogu wdrożenia `/srv/feedsodt`. To jedyne polecenie, które `odt-runner` może tak
    uruchomić. `feedsodt-deploy` odmawia taga spoza `vX.Y.Z` i commitu spoza `main`, łączy
-   `.env` z zadania z plikiem hosta (niżej), pobiera z commitu taga pliki Compose,
-   `nginx/`, konfigurację silników i `scripts/deploy/` do katalogu wdrożenia i uruchamia
-   jego `release.sh`. Na serwerze nie ma checkoutu.
+   `.env` z zadania z plikiem hosta (niżej), rozpakowuje commit taga do katalogu
+   tymczasowego i uruchamia jego `release.sh`. Na serwerze nie ma checkoutu.
 3. **`release.sh`** odmawia, gdy trwa przebieg fetchera (blokada `gtfs/.work/.lock`),
-   dopisuje do `.env` `FEEDSODT_VERSION=vX.Y.Z`, ściąga obrazy taga (także silników, żeby
-   były na miejscu przed nocą), instaluje nowy `.env`, odtwarza `fetcher` i `web`
-   (`up -d --wait`) i czeka do 10 minut, aż będą zdrowe. Potem usuwa z hosta obrazy
-   wszystkich poza 3 najnowszymi wydaniami (rejestr trzyma każde). Każdy błąd zatrzymuje
-   go i zadanie robi się czerwone.
+   dopisuje do `.env` `FEEDSODT_VERSION=vX.Y.Z` i ściąga obrazy taga (także silników, żeby
+   były na miejscu przed nocą). Do tej chwili katalog wdrożenia jest nietknięty. Potem
+   kopiuje pliki Compose, `nginx/`, konfigurację silników i `scripts/deploy/` obok
+   (`.release-new/`) i dopiero całą kopię podmienia na miejscu, instaluje nowy `.env`,
+   odtwarza `fetcher` (`up -d --wait`) i czeka do 10 minut, aż będzie zdrowy. `web`
+   odtwarza tylko przy zmianie `nginx/default.conf`: montuje ten plik, więc sam by go nie
+   przeczytał. Na koniec usuwa z hosta obrazy wszystkich poza 3 najnowszymi wydaniami
+   (rejestr trzyma każde). Każdy błąd zatrzymuje go i zadanie robi się czerwone.
 
 Silników routujących wydanie nie uruchamia: działają tylko w nocnym oknie
 (`shaper/engines.crontab`), a ich następny start bierze już obraz nowego wydania.
@@ -41,11 +43,13 @@ Silników routujących wydanie nie uruchamia: działają tylko w nocnym oknie
 przebudową działają. Nowe źródło albo zmiana slotu to nowe wydanie, nie edycja pliku na
 serwerze.
 
-**Po wydaniu** fetcher startuje od nowa i przy `FEEDSODT_RUN_ON_START=true` od razu robi
-pełny przebieg. W dzień silniki routujące nie działają, więc źródła z `shape` zawodzą,
-ponawiają się po 15, 30 i 60 minutach i zostają przy poprzedniej wersji do swojego
-nocnego slotu. Nic nie znika, ale logi pokażą te błędy. Kto tego nie chce, ustawia
-zmienną `FEEDSODT_RUN_ON_START=false` w środowisku `production`.
+**Po wydaniu** fetcher startuje od nowa bez przebiegu: na produkcji
+`FEEDSODT_RUN_ON_START` jest domyślnie `false` (`docker-compose.prod.yml`). Pliki zostają,
+a źródła idą w swoich slotach. Przy `true` fetcher od razu robiłby pełny przebieg, w dzień
+bez silników routujących: źródła z `shape` zawodziłyby i ponawiały się do godziny,
+a w tym czasie `release.sh` odrzucałby następne wydanie. Żeby nowe źródło dostało plik
+od razu, uruchom je ręcznie:
+`docker exec feedsodt-fetcher python -m feedsodt run-once --only <nazwa>`.
 
 ## Wydawanie
 
