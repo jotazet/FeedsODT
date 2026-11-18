@@ -10,7 +10,8 @@ Copyright (c) 2025-2026 Mikołaj Kuranowski, licencja MIT (LICENSE.PolishTrainsG
   * stop_time_update po plk_sequence; odwołane stacje -> SKIPPED, cały kurs -> CANCELED,
     stacja spoza rozkładu -> objazd (REPLACEMENT, przystanki <id>_FALLBACK)
   * uncertainty 0 = czas potwierdzony (cf), 1 = prognoza
-  * odstępstwo od oryginału: czasy w kursie nie mogą się cofać (monotonic)
+  * odstępstwa od oryginału: czasy w kursie nie mogą się cofać (monotonic), a kursy
+    zakończone wypadają z pliku (drop_finished, GTFS-RT Best Practices)
 
 Dane: PKP Polskie Linie Kolejowe S.A., Otwarte Dane Kolejowe (regulamin API wymaga
 wskazania PLK jako źródła).
@@ -30,13 +31,16 @@ import requests
 from google.transit import gtfs_realtime_pb2 as rt
 
 from ..http import USER_AGENT
-from .vehicles import TZ, cached, write_feed, zip_csv
+from .vehicles import TZ, cached, day_base, gsecs, write_feed, zip_csv
 
 log = logging.getLogger(__name__)
 
 API = "https://pdp-api.plk-sa.pl/api/v1"
 PAGE_SIZE, MAX_PAGES, PAGE_SPACING_S = 10_000, 5, 1.0
 ALT_LOOKUP_PERIOD_S = 3600  # Kuranowski: 20 min; godzina wystarcza (rozkład zmienia się rzadko)
+#: Zapas po końcu kursu, zanim jego encja zniknie z pliku (drop_finished): kilka
+#: odświeżeń na spóźnione potwierdzenie przyjazdu.
+FINISHED_GRACE_S = 600
 API_TIMEOUT = (10, 120)
 
 OFFSET_RE = re.compile(r"([+-][0-9]+)D$")
@@ -156,10 +160,14 @@ class PlkStatic:
 
             # stop_times (tylko kursy PLK z wybranych dni)
             st_by_tid = defaultdict(list)
+            self.end = {}  # trip_id -> rozkładowy koniec kursu, sekundy od początku dnia GTFS
             for r in zip_csv(zf, "stop_times.txt"):
                 tid = r["trip_id"]
                 if tid not in tid_keys:
                     continue
+                self.end[tid] = max(
+                    self.end.get(tid, 0), gsecs(r["arrival_time"]), gsecs(r["departure_time"])
+                )
                 station = r["stop_id"].split("_", 1)[0]
                 st_by_tid[tid].append(
                     (
@@ -403,6 +411,26 @@ def build_updates(static, trains, stats):
     return out
 
 
+def drop_finished(static, updates, now, stats):
+    """Bez kursów, które przestały być istotne dla pasażera.
+
+    GTFS-RT Best Practices: encję usuwa się z feedu dopiero, gdy nie jest już istotna dla
+    użytkownika, a aktualizacji przystanku nie wolno usunąć przed jego rozkładowym
+    przyjazdem, bo konsument wróciłby wtedy do rozkładu. Kurs znika więc po późniejszym
+    z dwóch końców, rzeczywistym (ostatni czas w aktualizacji) i rozkładowym, plus
+    FINISHED_GRACE_S. Odwołany kurs nie ma czasów: zostaje do rozkładowego końca.
+    API PLK oddaje dwa dni wstecz, więc bez tego ok. 98% pliku to kursy zakończone."""
+    out, cutoff = [], now - FINISHED_GRACE_S
+    for u in updates:
+        times = [t for s in u["stop_times"] for t in (s.get("arrival"), s.get("departure")) if t]
+        scheduled = day_base(u["start_date"]) + static.end.get(u["trip_id"], 0)
+        if max(times, default=0) < cutoff and scheduled < cutoff:
+            stats["kurs zakończony (pominięty)"] += 1
+            continue
+        out.append(u)
+    return out
+
+
 def to_feed(updates, ts):
     m = rt.FeedMessage()
     m.header.gtfs_realtime_version = "2.0"
@@ -479,8 +507,8 @@ class TUBuilder:
         req0 = self.api.requests
         ts, trains = self.api.operations()
         stats = defaultdict(int)
-        updates = build_updates(self.static, trains, stats)
         now = int(time.time())
+        updates = drop_finished(self.static, build_updates(self.static, trains, stats), now, stats)
         feed = to_feed(updates, parse_local(ts) if ts else now)
         write_feed(feed, out_path)
         info = {

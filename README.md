@@ -383,7 +383,7 @@ i `start_date`, więc konsument łączy je z tym plikiem, nie z feedami przewoź
 
 | plik | co zawiera | skąd | odstęp |
 |---|---|---|---|
-| `polish-trains-trip-updates.pb` | opóźnienia, odwołania, objazdy wszystkich pociągów z API | [Otwarte Dane Kolejowe PKP PLK](https://pdp-api.plk-sa.pl/) | `FEEDSODT_RT_TU_INTERVAL`, 60 s |
+| `polish-trains-trip-updates.pb` | opóźnienia, odwołania, objazdy pociągów z API, które jeszcze jadą albo dopiero skończyły | [Otwarte Dane Kolejowe PKP PLK](https://pdp-api.plk-sa.pl/) | `FEEDSODT_RT_TU_INTERVAL`, 60 s |
 | `polish-trains-vehicle-positions.pb` | pozycje pociągów KD, ŁKA i KMŁ | feedy GTFS-RT przewoźników w katalogu ODT | `FEEDSODT_RT_VP_INTERVAL`, 30 s |
 
 **Pozycje są prawdziwe**, z feedów przewoźników; nic nie jest interpolowane z rozkładu.
@@ -401,7 +401,15 @@ do północy, rozkłada resztę równo. Plik zostaje wtedy poprzedni; jego wiek 
 `header.timestamp`. Kontener jest „unhealthy", gdy plik pozycji ma ponad 10 minut,
 a z kluczem API także gdy TripUpdates ma ponad 40.
 
-Jedno odstępstwo od PolishTrainsGTFS: API PLK zostawia czasem w kursie czas, który się
+**Kursy zakończone znikają z TripUpdates**, jak każe
+[GTFS-RT Best Practices](https://gtfs.org/documentation/realtime/realtime-best-practices/):
+encja zostaje, dopóki jest istotna dla pasażera, i nie znika przed rozkładowym przyjazdem
+na ostatnią stację (konsument wróciłby do rozkładu). Kurs wypada więc 10 minut po
+późniejszym z dwóch końców, rzeczywistym i rozkładowym; odwołany po rozkładowym. API PLK
+oddaje dwa dni wstecz, więc bez tego ok. 98% pliku (ok. 6 MB) to kursy zakończone; teraz
+plik ma ok. 100 kB. Kuranowski publikuje wszystko.
+
+Drugie odstępstwo od PolishTrainsGTFS: API PLK zostawia czasem w kursie czas, który się
 cofa (np. odjazd z rozkładu przed opóźnionym przyjazdem), a OpenTripPlanner odrzuca
 wtedy całą aktualizację kursu. Nie wiadomo, który z dwóch sprzecznych czasów jest zły,
 więc zostaje najdłuższy niemalejący ciąg czasów kursu, a każdy czas spoza niego dostaje

@@ -219,6 +219,39 @@ def test_time_going_back_raises_a_stale_low_time(national_zip):
     assert fixed == 1
 
 
+def test_finished_trips_leave_the_feed_after_both_ends(national_zip):
+    from feedsodt.realtime.plk import FINISHED_GRACE_S, drop_finished
+
+    static = _plk_static(national_zip)
+
+    def at(day, hh, mm):
+        return int(dt.datetime(2026, 11, day, hh, mm, tzinfo=TZ).timestamp())
+
+    def kept(updates, now):
+        return [u["trip_id"] for u in drop_finished(static, updates, now, defaultdict(int))]
+
+    # KS 1234: rozkład do 09:00; przyjechał przed czasem, o 08:50.
+    early = {"trip_id": "PLK_KS_100_1", "start_date": D,
+             "stop_times": [{"stop_sequence": 3, "arrival": at(18, 8, 50)}]}
+    # Ten sam kurs opóźniony: przyjazd 10:00.
+    late = dict(early, stop_times=[{"stop_sequence": 3, "arrival": at(18, 10, 0)}])
+    # IC 5678 odwołany, bez czasów; rozkład do 00:40 dnia 19.11.
+    cancelled = {"trip_id": "PLK_IC_200_2", "start_date": "20261119", "stop_times": [],
+                 "cancelled": True}
+    grace = FINISHED_GRACE_S // 60
+
+    # Przyjechał wcześniej: zostaje do rozkładowego końca (+ zapas).
+    assert kept([early], at(18, 8, 55)) == ["PLK_KS_100_1"]
+    assert kept([early], at(18, 9, grace - 1)) == ["PLK_KS_100_1"]
+    assert kept([early], at(18, 9, grace + 1)) == []
+    # Opóźniony: zostaje do rzeczywistego końca (+ zapas).
+    assert kept([late], at(18, 10, grace - 1)) == ["PLK_KS_100_1"]
+    assert kept([late], at(18, 10, grace + 1)) == []
+    # Odwołany: do rozkładowego końca.
+    assert kept([cancelled], at(19, 0, 30)) == ["PLK_IC_200_2"]
+    assert kept([cancelled], at(19, 0, 40 + grace + 1)) == []
+
+
 def test_build_updates_matches_by_train_number(national_zip):
     static = _plk_static(national_zip)
     # /schedules/shortened powiązał nieznane (sid, oid) z numerem 1234.
