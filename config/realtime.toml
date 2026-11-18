@@ -6,8 +6,10 @@
 #
 # Wczytywany przy starcie usługi; zmiana wymaga restartu (na produkcji: wydania).
 
-# Co ile godzin pobierać na nowo statyczne GTFS (krajowy i przewoźników).
-static_max_age_hours = 12
+# O której (Europe/Warsaw) raz dziennie pobierać na nowo statyczne GTFS (krajowy
+# i przewoźników). mkuran.pl publikuje nową wersję polish_trains.zip ok. 02:45, a oba
+# pliki RT mają się z nią zgadzać (trip_id, start_date), więc zaraz po niej.
+static_refresh_at = "02:50"
 
 [national]
 # Krajowy GTFS kolejowy (Mikołaj Kuranowski, PolishTrainsGTFS).

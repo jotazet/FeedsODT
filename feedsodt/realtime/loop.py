@@ -128,7 +128,7 @@ def run_realtime(app: AppConfig) -> None:
 
     apikey = os.environ.get("PKP_PLK_APIKEY", "").strip()
     if apikey:
-        tu = TUBuilder(apikey, cfg["national"]["static"], cache_dir, cfg["static_max_age_hours"])
+        tu = TUBuilder(apikey, cfg["national"]["static"], cache_dir, cfg["static_refresh_at"])
         threading.Thread(
             target=tu_worker,
             args=(tu, out_dir / TU_FILE, app.rt_tu_interval, shared),

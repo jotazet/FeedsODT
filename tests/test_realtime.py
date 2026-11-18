@@ -349,6 +349,32 @@ def test_failure_wait_backs_off_and_waits_for_key_activation():
     assert loop.failure_wait(RuntimeError("HTTP 403 PendingActivation"), 3) == (0, 300)
 
 
+def test_static_copy_refreshes_once_a_day_after_0250(tmp_path, monkeypatch):
+    from feedsodt.realtime import vehicles
+
+    def at(day, hh, mm):
+        return dt.datetime(2026, 11, day, hh, mm, tzinfo=TZ).timestamp()
+
+    assert vehicles.last_refresh("02:50", at(19, 2, 49)) == at(18, 2, 50)
+    assert vehicles.last_refresh("02:50", at(19, 2, 50)) == at(19, 2, 50)
+    assert vehicles.last_refresh("02:50", at(19, 23, 0)) == at(19, 2, 50)
+
+    downloads = []
+    monkeypatch.setattr(vehicles, "download_to", lambda _s, _u, tmp, _n: downloads.append(tmp.write_bytes(b"x")))
+    path = tmp_path / "national.zip"
+    path.write_bytes(b"old")
+    import os
+
+    os.utime(path, (at(19, 2, 0), at(19, 2, 0)))  # kopia sprzed 02:50
+    monkeypatch.setattr(vehicles.time, "time", lambda: at(19, 3, 0))
+    vehicles.cached("https://example.invalid/n.zip", path, "02:50")
+    assert len(downloads) == 1
+    os.utime(path, (at(19, 2, 55), at(19, 2, 55)))  # świeża kopia z dziś
+    monkeypatch.setattr(vehicles.time, "time", lambda: at(19, 23, 0))
+    vehicles.cached("https://example.invalid/n.zip", path, "02:50")
+    assert len(downloads) == 1
+
+
 def test_vehicle_positions_survive_a_fallback_tu_outage(national_zip, tmp_path, monkeypatch):
     """Bez własnego TU i bez kasznii plik pozycji dalej powstaje (czasy z rozkładu)."""
     import requests
@@ -364,7 +390,7 @@ def test_vehicle_positions_survive_a_fallback_tu_outage(national_zip, tmp_path, 
 
     monkeypatch.setattr(vehicles, "http_get", down)
     cfg = {
-        "static_max_age_hours": 12,
+        "static_refresh_at": "02:50",
         "national": {"static": "https://example.invalid/n.zip", "rt": "https://example.invalid/rt"},
         "sources": [],
     }

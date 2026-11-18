@@ -334,7 +334,9 @@ def load_realtime(path: Path) -> dict:
     national = data.get("national")
     if not isinstance(national, dict) or not national.get("static"):
         raise ConfigError(f"{path.name}: brak [national] ze `static`")
-    data.setdefault("static_max_age_hours", 12)
+    refresh_at = data.setdefault("static_refresh_at", "02:50")
+    if not isinstance(refresh_at, str) or not re.fullmatch(r"([01]\d|2[0-3]):[0-5]\d", refresh_at):
+        raise ConfigError(f"{path.name}: static_refresh_at={refresh_at!r}, oczekiwano HH:MM")
     sources = data.get("sources") or []
     names = set()
     for index, source in enumerate(sources, start=1):

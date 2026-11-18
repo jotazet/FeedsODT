@@ -66,9 +66,20 @@ def http_get(session: requests.Session, url: str) -> bytes:
     return response.content
 
 
-def cached(url: str, path: Path, max_age_h: float) -> Path:
-    """Plik z `url`, pobrany ponownie, gdy kopia w `path` jest starsza niż max_age_h."""
-    if path.exists() and time.time() - path.stat().st_mtime < max_age_h * 3600:
+def last_refresh(at: str, now: float | None = None) -> float:
+    """Ostatnia chwila o godzinie `at` (HH:MM, Europe/Warsaw) nie później niż `now`."""
+    t = dt.datetime.fromtimestamp(time.time() if now is None else now, TZ)
+    hour, minute = (int(part) for part in at.split(":"))
+    mark = t.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    if mark > t:
+        mark -= dt.timedelta(days=1)
+    return mark.timestamp()
+
+
+def cached(url: str, path: Path, refresh_at: str) -> Path:
+    """Plik z `url`; kopia w `path` jest pobierana ponownie raz dziennie, przy pierwszym
+    użyciu po godzinie `refresh_at` (static_refresh_at w config/realtime.toml)."""
+    if path.exists() and path.stat().st_mtime >= last_refresh(refresh_at):
         return path
     log.info("pobieram %s -> %s", urllib.parse.urlsplit(url).hostname, path.name)
     # Wątki TU i VP potrafią pobierać tę samą kopię naraz.
@@ -367,17 +378,17 @@ class VPBuilder:
             self.state = {}
 
     def ensure_static(self, now):
-        age = self.cfg["static_max_age_hours"]
+        at = self.cfg["static_refresh_at"]
         today = dt.datetime.fromtimestamp(now, TZ).date()
         dates = [(today - dt.timedelta(days=1)).strftime("%Y%m%d"), today.strftime("%Y%m%d")]
-        zp = cached(self.cfg["national"]["static"], self.cache / "national.zip", age)
+        zp = cached(self.cfg["national"]["static"], self.cache / "national.zip", at)
         key = (tuple(dates), zp.stat().st_mtime)
         if key != self.nat_key:
             self.nat = National(zp, {s["agency"] for s in self.cfg["sources"]}, dates)
             self.nat_key = key
         for s in self.cfg["sources"]:
             if s.get("static"):
-                p = cached(s["static"], self.cache / f"{s['name']}.zip", age)
+                p = cached(s["static"], self.cache / f"{s['name']}.zip", at)
                 if self.src.get(s["name"], (None, 0))[1] != p.stat().st_mtime:
                     field = s.get("train_no_field", "trip_short_name")
                     self.src[s["name"]] = (SourceStatic(p, field), p.stat().st_mtime)

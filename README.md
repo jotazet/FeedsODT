@@ -390,7 +390,10 @@ i `start_date`, więc konsument łączy je z tym plikiem, nie z feedami przewoź
 Szacowana jest tylko pozycja oczekiwana kursu, którą rozstrzygamy, do którego kursu
 krajowego należy pojazd: po numerze pociągu z GTFS przewoźnika, a gdy go nie ma (KMŁ),
 po zgodności czasów i odległości. Pojazd bez jednoznacznego kursu nie trafia do pliku.
-Źródła i sposób dopasowania stoją w `config/realtime.toml`.
+Źródła i sposób dopasowania stoją w `config/realtime.toml`. Statyczne GTFS (krajowy
+i przewoźników) pobieramy raz dziennie o 02:50 (`static_refresh_at`), zaraz po nowej
+wersji `polish_trains.zip` z ok. 02:45, żeby `trip_id` w obu plikach pasowały do
+najnowszej paczki.
 
 **TripUpdates** wymagają klucza API PLK (`PKP_PLK_APIKEY`). Bez niego plik nie powstaje,
 a pozycje biorą przewidywane czasy z zapasowego feedu

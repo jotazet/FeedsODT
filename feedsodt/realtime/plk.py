@@ -464,9 +464,9 @@ def to_feed(updates, ts):
 
 
 class TUBuilder:
-    def __init__(self, apikey, static_url, cache_dir: Path, static_max_age_h=12):
+    def __init__(self, apikey, static_url, cache_dir: Path, static_refresh_at="02:50"):
         self.api = PlkApi(apikey)
-        self.static_url, self.cache, self.age = static_url, cache_dir, static_max_age_h
+        self.static_url, self.cache, self.refresh_at = static_url, cache_dir, static_refresh_at
         self.static, self.static_key, self.alt_at = None, None, 0.0
         cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -474,7 +474,7 @@ class TUBuilder:
         today = dt.datetime.now(TZ).date()
         dates = [today + dt.timedelta(days=k) for k in (-2, -1, 0, 1)]  # kursy nocne/wielodniowe
         # Ta sama kopia co dla VehiclePositions: jeden plik, jedno pobranie.
-        zp = cached(self.static_url, self.cache / "national.zip", self.age)
+        zp = cached(self.static_url, self.cache / "national.zip", self.refresh_at)
         key = (today, zp.stat().st_mtime)
         if key != self.static_key:
             self.static, self.static_key, self.alt_at = PlkStatic(zp, dates), key, 0.0
