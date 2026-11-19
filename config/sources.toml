@@ -105,12 +105,14 @@ link_text = "GTFS"
 select    = "single"
 
 # --- Rybnik -------------------------------------------------------------------
+# Od listopada 2026 GTFS ma własną stronę; „Pliki do pobrania" tylko do niej
+# linkuje. Plik: /download/attachment/<id>/gtfs-kmr.zip?v=<wersja>.
 [[source]]
 name         = "rybnik"
 run_at      = "01:30"
 output       = "rybnik-gtfs.zip"
 resolver     = "html"
-url          = "https://km.rybnik.pl/435/pliki-do-pobrania.html"
+url          = "https://km.rybnik.pl/538/rozklad-jazdy-gtfs.html"
 link_pattern = "gtfs.*\\.zip"
 select       = "single"
 
