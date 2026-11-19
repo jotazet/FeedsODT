@@ -12,7 +12,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "ruff==0.14.0"]
+dev = ["pytest>=8.0", "ruff==0.17.4"]
 
 [tool.setuptools.packages.find]
 include = ["feedsodt*"]
@@ -32,3 +32,9 @@ addopts = "-q"
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint]
+# Domyślny zestaw reguł ruffa sprzed 0.17, wpisany wprost: nowa wersja ruffa nie może
+# sama poszerzać lintowania (0.17 dodała ok. 40 uwag w niezmienionym kodzie).
+# Szerszy zestaw to osobna, świadoma zmiana.
+select = ["E4", "E7", "E9", "F"]
