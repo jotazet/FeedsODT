@@ -1,7 +1,7 @@
 # Comiesięczne pull requesty dla tego, co repozytorium przypina, a czego samo nie buduje:
 # akcje (przypięte commitem), zależności Pythona i obrazy bazowe Dockerfile'ów. Każda wersja
 # czeka tydzień od wydania. Poprawki bezpieczeństwa nie czekają na harmonogram. Obrazy
-# z docker-compose.yml (GraphHopper, nginx) i wersja OpenRailRouting (ORR_VERSION) zmieniają
+# z docker-compose.yml (GraphHopper, nginx), wersja OpenRailRouting (ORR_VERSION) i jej Java zmieniają
 # się ręcznie: nowy silnik to nowy graf i inne kształty (shaper/README.md).
 version: 2
 updates:
@@ -34,3 +34,8 @@ updates:
       # Nowa wersja minor Pythona to też requires-python i CI; przesuwamy ręcznie.
       - dependency-name: python
         update-types: ["version-update:semver-minor"]
+      # Java silnika kolejowego (shaper/openrailrouting) zmienia się ręcznie, razem
+      # z ORR_VERSION: CI w pull requeście nie buduje tego obrazu, więc nic by nie
+      # sprawdziło nowej wersji, a Dependabot proponuje wydania bez długiego wsparcia.
+      - dependency-name: eclipse-temurin
+      - dependency-name: maven
