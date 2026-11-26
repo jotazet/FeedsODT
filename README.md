@@ -88,7 +88,7 @@ docker compose exec fetcher python -m feedsodt list       # co jest skonfigurowa
 | [Słupsk](https://zimslupsk.pl/otwarte-dane.html) | `html` | `today_forward` | pliki nazwane datą publikacji |
 | [ZKGKM Olkusz](https://api.odt.org.pl/feed/9/google_transit.zip) | `direct` | `single` | 28 linii bez barw i bez geometrii — `transform = "odt"` + `shape` |
 | [MLD (Koleje Małopolskie)](https://gtfs.kolejemalopolskie.com.pl/GTFS-ST/GTFS.zip) | `direct` | `single` | 70 linii dowozowych, barwy z tabeli organizatora |
-| [SKA (Koleje Małopolskie)](https://www.kolejemalopolskie.com.pl/rozklady_jazdy/kml-ska-gtfs.zip) | `direct` | `single` | perony trzymane w `stop_headsign` — przebudowa `ska,odt` + `shape` |
+| [SKA (Koleje Małopolskie)](https://gtfs.kolejemalopolskie.com.pl/) | `direct` | `single` | perony trzymane w `stop_headsign` — przebudowa `ska,odt` + `shape` |
 | [ZKKM Chrzanów](https://zkkm.pl/files/pl/gtfs/google-transit-3.zip) | `direct` | `single` | 26 linii w jednej barwie organizatora |
 
 ## Przebudowa feedu (`transform`)
