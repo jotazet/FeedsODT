@@ -198,7 +198,10 @@ name        = "ska"
 run_at      = "01:10"
 output      = "ska-gtfs.zip"
 resolver    = "direct"
-url         = "https://www.kolejemalopolskie.com.pl/rozklady_jazdy/kml-ska-gtfs.zip"
+# kml-ska-gtfs.zip („Rozkłady handlowe") ze strony https://gtfs.kolejemalopolskie.com.pl/,
+# która wydaje pliki tylko przez ?download=<ścieżka w base64>; stary adres na
+# www.kolejemalopolskie.com.pl przewoźnik zastąpił tą stroną.
+url         = "https://gtfs.kolejemalopolskie.com.pl/?download=L2hvbWUvYnByb2cvcm96a2xhZHlfamF6ZHkva21sLXNrYS1ndGZzLnppcA%3D%3D"
 filename    = "ska-GTFS.zip"
 transform   = "ska,odt"
 route_color = "164194"

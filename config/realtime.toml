@@ -27,9 +27,12 @@ rt = "https://gtfs.kasznia.net/rt/polish-trains.pb"
 [[sources]]
 name = "KD"
 agency = "KD"
-# Login i hasło kd_sample są publiczne, więc mogą stać w adresie.
-static = "https://kd_sample:Hm5mEuPC%3F1h7@kd.kiedyprzyjedzie.pl/gtfs/kd_sample/google_transit.zip"
-train_no_field = "block_id"
+# Bez statycznego GTFS -> dopasowanie zapasowe. RT (kd_odtorg/realtime.pb) bierze trip_id
+# z bieżącego eksportu kiedyPrzyjedzie, a statyczne kd_sample i kd_odtorg
+# google_transit.zip stoją na eksporcie z 20.11.2026: 26.11 żaden z 31 trip_id z RT nie
+# był w kd_odtorg (stop_id zgadzały się wszystkie), dopasowanie po ID dawało 0 pociągów,
+# zapasowe 25. Wróć do static + train_no_field = "block_id", gdy statyczny plik znów
+# będzie miał te same trip_id co RT.
 rt = ["https://api.odt.org.pl/feed/rt/4/trip_update/"]
 
 [[sources]]
@@ -45,8 +48,10 @@ rt = [
 [[sources]]
 name = "KML"
 agency = "KML"
-# trip_id z RT nie występują w kml-ska-gtfs.zip -> dopasowanie zapasowe (czasy TU +
-# pozycja). Ten endpoint ma też encje vehicle (pozycje pociągów SKA).
+# ODT proxuje tu kolej/realtime.pb ze strony https://gtfs.kolejemalopolskie.com.pl/
+# (TripUpdate i pozycje pociągów). Ani trip_id, ani stop_id z tego RT nie występują
+# w kolej/gtfs.zip ani w kml-ska-gtfs.zip z tej samej strony (sprawdzone 26.11.2026),
+# więc dopasowanie zapasowe (czasy TU + pozycja).
 rt = ["https://api.odt.org.pl/feed/rt/2/trip_update/"]
 
 [[sources]]
