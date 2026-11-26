@@ -169,7 +169,8 @@ select      = "single"
 # 70 linii autobusowych A1–A71 plus K63, K71 i SKA2. Barwy bierzemy z tabeli
 # organizatora (config/colors/mld-routes.txt) — dopasowanie po route_short_name,
 # bo route_id niesie numer publikacji i zmienia się co wydanie (1359_A1).
-# shapes.txt jest w paczce, ale pusty: 0 wierszy, 0 kursów z shape_id.
+# Bez dorabiania geometrii: od listopada 2026 przewoźnik sam podaje shapes.txt
+# (26.11.2026: 5090 z 5090 kursów z shape_id), więc publikujemy jego kształty.
 [[source]]
 name        = "mld"
 run_at      = "00:50"
@@ -179,8 +180,6 @@ url         = "https://gtfs.kolejemalopolskie.com.pl/GTFS-ST/GTFS.zip"
 filename    = "mld-GTFS.zip"
 transform   = "odt"
 colors_file = "mld-routes.txt"
-shape       = "bus"
-shape_area  = "poland"
 select      = "single"
 
 # --- SKA (Koleje Małopolskie) -------------------------------------------------
